@@ -19,9 +19,9 @@ and blockers. Update it in the same commit that changes a stage's state.
 |---|---|---|---|
 | S0 | Shared replay core | `COMPLETE` | Chronological replay, profile/query/context intent types, local SQLite ordering, and four automated checks are committed. |
 | S1 | MINDsmall train-only tuning | `COMPLETE` | Six variants were evaluated on train only; `a065_frequency_h72` was selected by nDCG@10. |
-| S2 | MINDsmall frozen validation | `IN_PROGRESS` | Run exactly one held-out dev evaluation with the S1 configuration and record all baselines and ablations. |
+| S2 | MINDsmall frozen validation | `COMPLETE` | The frozen full score exceeds frequency on held-out dev nDCG@10 and MRR. |
 | S3 | MINDlarge scale confirmation | `BLOCKED` | Requires locally supplied MINDlarge train and dev archives. No tuning is permitted at this stage. |
-| S4 | KuaiSAR query-aware replay | `PENDING` | Add actual query-to-caption relevance, multi-action history, and exposed-slate ranking. |
+| S4 | KuaiSAR query-aware replay | `IN_PROGRESS` | Begin with the direct-download small release; add actual query-to-caption relevance, multi-action history, and exposed-slate ranking. |
 | S5 | Controlled lifecycle validation | `PENDING` | Define deterministic pin, archive, restore, correction, and graph-disconnection scenarios. |
 
 ## Evidence recorded so far
@@ -67,7 +67,19 @@ result; otherwise frequency remains the stronger baseline.
 The selection was performed entirely on the MINDsmall train split. The next
 run must use the frozen values unchanged on the dev split.
 
+### S2 — complete
+
+- Frozen run: `results/mindsmall-dev-frozen.json` (local, not committed)
+- Eligible episodes: 71,745
+- Full score: MRR 0.3464, nDCG@5 0.3305, nDCG@10 0.3897
+- Frequency baseline: MRR 0.3411, nDCG@5 0.3244, nDCG@10 0.3843
+- Difference versus frequency: +0.0054 MRR, +0.0061 nDCG@5, +0.0054 nDCG@10
+
+The held-out result preserves the train-selected improvement over frequency.
+It completes the MINDsmall stage. The configuration is frozen for S3; changing
+it would require a new, separately documented selection stage.
+
 ## Next update
 
-S2 will record the single frozen dev result and whether it exceeds the
-frequency baseline on the primary metric.
+S4 will record the KuaiSAR release checksum, schema inspection, and the first
+query-aware replay configuration.
