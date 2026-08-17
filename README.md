@@ -1,7 +1,7 @@
-# Wear-PKG POC
+# Wear-PKG
 
-This repository implements the first empirical layer of the dissertation POC:
-chronological, leakage-safe re-ranking of MIND impression candidates using a
+This repository implements a chronological, leakage-safe re-ranking workflow
+for MIND impression candidates using a
 historical interaction profile and inspectable salience features.
 
 MIND has no issued queries. The implementation therefore calls its relevance

@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "wear-pkg-poc"
+name = "wear-pkg"
 version = "0.1.0"
-description = "Leakage-safe temporal replay for the Wear-PKG dissertation POC"
+description = "Leakage-safe temporal replay and ranking for Wear-PKG"
 requires-python = ">=3.11"
 
 [project.scripts]
