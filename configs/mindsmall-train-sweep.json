@@ -1,0 +1,43 @@
+{
+  "selection_metric": "ndcg@10",
+  "min_observed_history": 1,
+  "use_provided_history": true,
+  "variants": [
+    {
+      "id": "a050_equal_h24",
+      "alpha": 0.5,
+      "half_life_hours": 24,
+      "weights": {"recency": 0.25, "frequency": 0.25, "context": 0.25, "graph": 0.25}
+    },
+    {
+      "id": "a065_equal_h24",
+      "alpha": 0.65,
+      "half_life_hours": 24,
+      "weights": {"recency": 0.25, "frequency": 0.25, "context": 0.25, "graph": 0.25}
+    },
+    {
+      "id": "a080_equal_h24",
+      "alpha": 0.8,
+      "half_life_hours": 24,
+      "weights": {"recency": 0.25, "frequency": 0.25, "context": 0.25, "graph": 0.25}
+    },
+    {
+      "id": "a065_frequency_h24",
+      "alpha": 0.65,
+      "half_life_hours": 24,
+      "weights": {"recency": 0.15, "frequency": 0.5, "context": 0.15, "graph": 0.2}
+    },
+    {
+      "id": "a065_recent_frequency_h24",
+      "alpha": 0.65,
+      "half_life_hours": 24,
+      "weights": {"recency": 0.35, "frequency": 0.35, "context": 0.15, "graph": 0.15}
+    },
+    {
+      "id": "a065_frequency_h72",
+      "alpha": 0.65,
+      "half_life_hours": 72,
+      "weights": {"recency": 0.15, "frequency": 0.5, "context": 0.15, "graph": 0.2}
+    }
+  ]
+}

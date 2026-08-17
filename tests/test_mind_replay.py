@@ -6,7 +6,8 @@ import unittest
 from pathlib import Path
 
 from wear_pkg.intent import ProfileIntent, QueryIntent
-from wear_pkg.mind import MindRunConfig, evaluate_mind
+from wear_pkg.mind import MindRunConfig, evaluate_mind, evaluate_mind_sweep
+from wear_pkg.salience import SalienceWeights
 from wear_pkg.relevance import LexicalRelevance
 
 
@@ -50,6 +51,20 @@ class MindReplayTest(unittest.TestCase):
     def test_missing_dataset_has_a_clear_error(self) -> None:
         with self.assertRaisesRegex(FileNotFoundError, "must contain news.tsv"):
             evaluate_mind(Path("/tmp/wear-pkg-does-not-exist"))
+
+    def test_sweep_selects_variants_in_one_replay(self) -> None:
+        variants = {
+            "balanced": MindRunConfig(alpha=0.5, use_provided_history=True),
+            "frequency": MindRunConfig(
+                alpha=0.5,
+                use_provided_history=True,
+                salience_weights=SalienceWeights(0.1, 0.7, 0.1, 0.1),
+            ),
+        }
+        result = evaluate_mind_sweep(self._dataset(), variants)
+        self.assertEqual(result["history_mode"], "provided_non_temporal")
+        self.assertEqual(set(result["variants"]), set(variants))
+        self.assertEqual(result["reference_metrics"]["frequency"]["episodes"], 3)
 
 
 if __name__ == "__main__":

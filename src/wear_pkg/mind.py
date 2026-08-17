@@ -6,7 +6,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Mapping
 
 from .intent import ProfileIntent
 from .metrics import MetricAccumulator
@@ -231,6 +231,147 @@ def evaluate_mind(dataset_dir: Path, config: MindRunConfig = MindRunConfig()) ->
         "episodes_with_observed_history": eligible_episodes,
         "unknown_candidate_items_skipped": skipped_unknown_items,
         "metrics": {name: accumulator.as_dict() for name, accumulator in metrics.items()},
+        "limitations": [
+            "MIND-provided history is never used for recency because individual event times are unavailable.",
+            "Click labels are implicit engagement under the logged news policy, not relevance or personal importance labels.",
+            "This evaluates profile relevance plus graph-propagated salience, not query-conditioned retrieval.",
+        ],
+    }
+
+
+def evaluate_mind_sweep(dataset_dir: Path, variants: Mapping[str, MindRunConfig]) -> dict:
+    """Evaluate a train-only configuration grid in one chronological replay."""
+    if not variants:
+        raise ValueError("At least one sweep variant is required")
+    configured = list(variants.items())
+    reference = configured[0][1]
+    if any(
+        candidate.min_observed_history != reference.min_observed_history
+        or candidate.use_provided_history != reference.use_provided_history
+        for _, candidate in configured
+    ):
+        raise ValueError("Sweep variants must share history eligibility and provided-history mode")
+
+    required = (dataset_dir / "news.tsv", dataset_dir / "behaviors.tsv")
+    missing = [str(path) for path in required if not path.is_file()]
+    if missing:
+        raise FileNotFoundError(
+            "MIND dataset directory must contain news.tsv and behaviors.tsv; missing: " + ", ".join(missing)
+        )
+    items = load_news(dataset_dir / "news.tsv")
+    relevance = LexicalRelevance.from_documents({item_id: item.tokens for item_id, item in items.items()})
+    index_path = build_event_index(dataset_dir)
+    baseline_metrics = {name: MetricAccumulator() for name in ("profile_relevance", "frequency")}
+    variant_metrics = {variant_id: MetricAccumulator() for variant_id in variants}
+    variants_by_half_life: dict[float, list[tuple[str, MindRunConfig]]] = {}
+    for variant_id, config in configured:
+        variants_by_half_life.setdefault(config.half_life_hours, []).append((variant_id, config))
+
+    previous_user: str | None = None
+    history: list[InteractionEvent] = []
+    cached_profile_item_ids: tuple[str, ...] | None = None
+    cached_profile_vector: dict[str, float] | None = None
+    eligible_episodes = 0
+    skipped_unknown_items = 0
+
+    for episode in iter_episodes(index_path):
+        if episode.user_id != previous_user:
+            previous_user = episode.user_id
+            history = []
+            cached_profile_item_ids = None
+            cached_profile_vector = None
+        present = [candidate for candidate in episode.candidates if candidate.item_id in items]
+        skipped_unknown_items += len(episode.candidates) - len(present)
+        observed_item_ids = tuple(event.item_id for event in history)
+        provided_item_ids = tuple(item_id for item_id in episode.prior_item_ids if item_id in items)
+        profile_item_ids = provided_item_ids if reference.use_provided_history and provided_item_ids else observed_item_ids
+        seed_item_ids = tuple(item_id for item_id in provided_item_ids if item_id not in set(observed_item_ids)) if reference.use_provided_history else ()
+
+        if len(profile_item_ids) >= reference.min_observed_history and present:
+            if profile_item_ids != cached_profile_item_ids:
+                cached_profile_item_ids = profile_item_ids
+                cached_profile_vector = relevance.profile_vector(ProfileIntent(profile_item_ids))
+            assert cached_profile_vector is not None
+            profile_scores = {
+                candidate.item_id: relevance.vector_score(cached_profile_vector, candidate.item_id)
+                for candidate in present
+            }
+            seed_concepts = tuple(items[item_id].concepts for item_id in seed_item_ids)
+            seed_contexts = tuple(items[item_id].contexts for item_id in seed_item_ids)
+            normalized_by_half_life = {}
+            for half_life_hours in variants_by_half_life:
+                raw = {
+                    candidate.item_id: raw_features(
+                        items[candidate.item_id].concepts,
+                        items[candidate.item_id].contexts,
+                        history,
+                        episode.timestamp,
+                        half_life_hours,
+                        seed_concepts=seed_concepts,
+                        seed_contexts=seed_contexts,
+                    )
+                    for candidate in present
+                }
+                normalized_by_half_life[half_life_hours] = normalize_within_episode(raw)
+
+            baseline_metrics["profile_relevance"].add(
+                _rank([(candidate.label, profile_scores[candidate.item_id], candidate.item_id) for candidate in present])
+            )
+            # Frequency does not depend on temporal half-life; use the first computed feature set.
+            baseline_features = next(iter(normalized_by_half_life.values()))
+            baseline_metrics["frequency"].add(
+                _rank([(candidate.label, baseline_features[candidate.item_id].frequency, candidate.item_id) for candidate in present])
+            )
+            for half_life_hours, grouped_variants in variants_by_half_life.items():
+                features = normalized_by_half_life[half_life_hours]
+                for variant_id, config in grouped_variants:
+                    variant_metrics[variant_id].add(
+                        _rank(
+                            [
+                                (
+                                    candidate.label,
+                                    config.alpha * profile_scores[candidate.item_id]
+                                    + (1 - config.alpha) * combine(features[candidate.item_id], config.salience_weights),
+                                    candidate.item_id,
+                                )
+                                for candidate in present
+                            ]
+                        )
+                    )
+            eligible_episodes += 1
+
+        for candidate in present:
+            if candidate.label > 0:
+                item = items[candidate.item_id]
+                history.append(
+                    InteractionEvent(
+                        user_id=episode.user_id,
+                        item_id=candidate.item_id,
+                        timestamp=episode.timestamp,
+                        action="click",
+                        concepts=item.concepts,
+                        contexts=item.contexts,
+                    )
+                )
+
+    return {
+        "dataset": "MIND",
+        "intent_mode": "profile_relevance_no_fabricated_query",
+        "history_mode": "provided_non_temporal" if reference.use_provided_history else "timestamped_observed_only",
+        "episodes_with_ranking_history": eligible_episodes,
+        "unknown_candidate_items_skipped": skipped_unknown_items,
+        "reference_metrics": {name: accumulator.as_dict() for name, accumulator in baseline_metrics.items()},
+        "variants": {
+            variant_id: {
+                "config": {
+                    "alpha": config.alpha,
+                    "half_life_hours": config.half_life_hours,
+                    "salience_weights": config.salience_weights.__dict__,
+                },
+                "metrics": variant_metrics[variant_id].as_dict(),
+            }
+            for variant_id, config in configured
+        },
         "limitations": [
             "MIND-provided history is never used for recency because individual event times are unavailable.",
             "Click labels are implicit engagement under the logged news policy, not relevance or personal importance labels.",

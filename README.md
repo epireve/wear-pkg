@@ -70,6 +70,22 @@ The runner creates a local SQLite event index beside the dataset on first run.
 It allows MINDlarge to be replayed by user and timestamp without loading all
 behaviour rows into memory.
 
+## Train-only configuration selection
+
+The checked-in MINDsmall grid selects the best `nDCG@10` result using training
+data only. It uses the provided MIND history for non-temporal signals, but
+never for recency.
+
+```bash
+.venv/bin/wear-pkg mind-sweep \
+  --dataset-dir data/MINDsmall_train \
+  --config configs/mindsmall-train-sweep.json \
+  --output results/mindsmall-train-sweep.json
+```
+
+Copy only the selected configuration into the frozen dev command. Do not use
+dev output to select another configuration.
+
 ## Dataset-agnostic intent contract
 
 ```text
