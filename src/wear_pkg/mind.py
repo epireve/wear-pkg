@@ -151,6 +151,8 @@ def evaluate_mind(dataset_dir: Path, config: MindRunConfig = MindRunConfig()) ->
     metrics = {name: MetricAccumulator() for name in ("profile_relevance", "recency", "frequency", "recency_frequency", "salience", "wear_pkg")}
     previous_user: str | None = None
     history: list[InteractionEvent] = []
+    cached_profile_item_ids: tuple[str, ...] | None = None
+    cached_profile_vector: dict[str, float] | None = None
     skipped_unknown_items = 0
     eligible_episodes = 0
 
@@ -158,6 +160,8 @@ def evaluate_mind(dataset_dir: Path, config: MindRunConfig = MindRunConfig()) ->
         if episode.user_id != previous_user:
             previous_user = episode.user_id
             history = []
+            cached_profile_item_ids = None
+            cached_profile_vector = None
         present = [candidate for candidate in episode.candidates if candidate.item_id in items]
         skipped_unknown_items += len(episode.candidates) - len(present)
         observed_item_ids = tuple(event.item_id for event in history)
@@ -166,6 +170,12 @@ def evaluate_mind(dataset_dir: Path, config: MindRunConfig = MindRunConfig()) ->
         seed_item_ids = tuple(item_id for item_id in provided_item_ids if item_id not in set(observed_item_ids)) if config.use_provided_history else ()
         if len(profile_item_ids) >= config.min_observed_history and present:
             intent = ProfileIntent(profile_item_ids)
+            if profile_item_ids != cached_profile_item_ids:
+                cached_profile_item_ids = profile_item_ids
+                cached_profile_vector = relevance.profile_vector(intent)
+            assert cached_profile_vector is not None
+            seed_concepts = tuple(items[item_id].concepts for item_id in seed_item_ids)
+            seed_contexts = tuple(items[item_id].contexts for item_id in seed_item_ids)
             raw = {
                 candidate.item_id: raw_features(
                     items[candidate.item_id].concepts,
@@ -173,15 +183,15 @@ def evaluate_mind(dataset_dir: Path, config: MindRunConfig = MindRunConfig()) ->
                     history,
                     episode.timestamp,
                     config.half_life_hours,
-                    seed_concepts=(items[item_id].concepts for item_id in seed_item_ids),
-                    seed_contexts=(items[item_id].contexts for item_id in seed_item_ids),
+                    seed_concepts=seed_concepts,
+                    seed_contexts=seed_contexts,
                 )
                 for candidate in present
             }
             normalised = normalize_within_episode(raw)
             scores = []
             for candidate in present:
-                profile = relevance.score(intent, candidate.item_id)
+                profile = relevance.vector_score(cached_profile_vector, candidate.item_id)
                 feature = normalised[candidate.item_id]
                 salience = combine(feature, config.salience_weights)
                 scores.append((candidate, profile, feature, salience))

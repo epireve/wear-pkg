@@ -45,6 +45,7 @@ class MindReplayTest(unittest.TestCase):
         lexical = LexicalRelevance.from_documents({"AI": ("openai", "model"), "SPORT": ("football", "score")})
         self.assertGreater(lexical.score(QueryIntent(frozenset({"football"})), "SPORT"), lexical.score(QueryIntent(frozenset({"football"})), "AI"))
         self.assertGreater(lexical.score(ProfileIntent(("AI",)), "AI"), lexical.score(ProfileIntent(("AI",)), "SPORT"))
+        self.assertGreater(lexical.vector_score(lexical.profile_vector(ProfileIntent(("AI",))), "AI"), lexical.vector_score(lexical.profile_vector(ProfileIntent(("AI",))), "SPORT"))
 
     def test_missing_dataset_has_a_clear_error(self) -> None:
         with self.assertRaisesRegex(FileNotFoundError, "must contain news.tsv"):
