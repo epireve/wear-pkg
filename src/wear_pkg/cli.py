@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 from pathlib import Path
 
+from .kuaisar import KuaiSarConfig, evaluate_kuaisar
 from .mind import MindRunConfig, evaluate_mind, evaluate_mind_sweep
 from .salience import SalienceWeights
 
@@ -63,6 +65,24 @@ def _mind_sweep(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def _kuaisar_run(arguments: argparse.Namespace) -> int:
+    config = KuaiSarConfig(
+        alpha=arguments.alpha,
+        half_life_hours=arguments.half_life_hours,
+        min_history_events=arguments.min_history_events,
+        max_sessions=arguments.max_sessions,
+    )
+    try:
+        result = evaluate_kuaisar(arguments.dataset_dir, config)
+    except (FileNotFoundError, ValueError, sqlite3.Error) as error:
+        raise SystemExit(f"error: {error}") from error
+    arguments.output.parent.mkdir(parents=True, exist_ok=True)
+    arguments.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"Wrote {arguments.output}")
+    print(json.dumps(result["metrics"], indent=2, sort_keys=True))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="wear-pkg")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -83,6 +103,14 @@ def main() -> int:
     sweep.add_argument("--config", type=Path, required=True, help="JSON file containing sweep variants")
     sweep.add_argument("--output", type=Path, required=True)
     sweep.set_defaults(func=_mind_sweep)
+    kuaisar = subparsers.add_parser("kuaisar-run", help="Run query-aware KuaiSAR candidate re-ranking")
+    kuaisar.add_argument("--dataset-dir", type=Path, required=True)
+    kuaisar.add_argument("--output", type=Path, required=True)
+    kuaisar.add_argument("--alpha", type=float, default=0.65)
+    kuaisar.add_argument("--half-life-hours", type=float, default=72.0)
+    kuaisar.add_argument("--min-history-events", type=int, default=1)
+    kuaisar.add_argument("--max-sessions", type=int)
+    kuaisar.set_defaults(func=_kuaisar_run)
     arguments = parser.parse_args()
     return arguments.func(arguments)
 

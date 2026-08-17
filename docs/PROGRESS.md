@@ -79,6 +79,14 @@ The held-out result preserves the train-selected improvement over frequency.
 It completes the MINDsmall stage. The configuration is frozen for S3; changing
 it would require a new, separately documented selection stage.
 
+### S4 — in progress
+
+- Downloaded release: KuaiSAR-small (`KuaiSAR.zip`)
+- Archive SHA-256: `ed8afa12196cbf18a719511a03b0915522c4039a6c08ce306df69aaeddb9fa1c`
+- Extracted source rows: 3,171,232 search candidates; 7,493,102 recommendation events; 4,157,219 item records.
+- Implemented fields: actual query-to-caption lexical relevance, exposure-bound search slates, historical recommendation/search actions, and author/category graph support.
+- Pending evidence: derived SQLite index, bounded smoke replay, and metric output.
+
 ## Next update
 
 S4 will record the KuaiSAR release checksum, schema inspection, and the first

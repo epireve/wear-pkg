@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from wear_pkg.intent import ProfileIntent, QueryIntent
+from wear_pkg.kuaisar import KuaiSarConfig, evaluate_kuaisar
 from wear_pkg.mind import MindRunConfig, evaluate_mind, evaluate_mind_sweep
 from wear_pkg.salience import SalienceWeights
 from wear_pkg.relevance import LexicalRelevance
@@ -65,6 +66,34 @@ class MindReplayTest(unittest.TestCase):
         self.assertEqual(result["history_mode"], "provided_non_temporal")
         self.assertEqual(set(result["variants"]), set(variants))
         self.assertEqual(result["reference_metrics"]["frequency"]["episodes"], 3)
+
+    def test_kuaisar_uses_actual_query_and_prior_action(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name) / "KuaiSAR_final"
+        root.mkdir()
+        (root / "item_features.csv").write_text(
+            "item_id,caption,author_id,item_type,upload_time,upload_type,music_id,first_level_category_id,first_level_category_name,second_level_category_id\n"
+            "1,[1],10,NORMAL,2023-01-01,UNKNOWN,0,1,a,11\n"
+            "2,[2],10,NORMAL,2023-01-01,UNKNOWN,0,1,a,11\n"
+            "3,[3],20,NORMAL,2023-01-01,UNKNOWN,0,2,b,22\n",
+            encoding="utf-8",
+        )
+        (root / "src_inter.csv").write_text(
+            "keyword,item_id,click_cnt,search_session_id,item_type,user_id,search_session_timestamp,search_source,search_session_time\n"
+            '"[2]",2,1,1,VIDEO,U1,2000,USER_INPUT,2023-01-01 00:00:02\n'
+            '"[2]",3,0,1,VIDEO,U1,2000,USER_INPUT,2023-01-01 00:00:02\n',
+            encoding="utf-8",
+        )
+        (root / "rec_inter.csv").write_text(
+            "user_id,item_id,duration_ms,playing_time,timestamp,forward,like,follow,search_item_related,search,click,time\n"
+            "U1,1,100,100,1000,0,1,0,0,0,1,2023-01-01 00:00:01\n",
+            encoding="utf-8",
+        )
+        result = evaluate_kuaisar(root.parent, KuaiSarConfig(max_sessions=1))
+        self.assertEqual(result["intent_mode"], "actual_query_to_caption")
+        self.assertEqual(result["ranked_sessions"], 1)
+        self.assertEqual(result["metrics"]["query_lexical"]["episodes"], 1)
 
 
 if __name__ == "__main__":

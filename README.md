@@ -86,6 +86,23 @@ never for recency.
 Copy only the selected configuration into the frozen dev command. Do not use
 dev output to select another configuration.
 
+## KuaiSAR query-aware replay
+
+KuaiSAR provides actual hashed query tokens, shown search candidates, click
+labels, and prior multi-action recommendation history. The runner matches each
+query with item-caption tokens, then uses only earlier recommendation and
+search interactions for salience.
+
+```bash
+.venv/bin/wear-pkg kuaisar-run \
+  --dataset-dir data/KuaiSAR-small \
+  --max-sessions 1000 \
+  --output results/kuaisar-small-smoke.json
+```
+
+The initial run is intentionally bounded. Remove `--max-sessions` only after
+the derived SQLite index and smoke result have been verified.
+
 ## Dataset-agnostic intent contract
 
 ```text
