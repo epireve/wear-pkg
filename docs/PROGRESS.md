@@ -85,7 +85,10 @@ it would require a new, separately documented selection stage.
 - Archive SHA-256: `ed8afa12196cbf18a719511a03b0915522c4039a6c08ce306df69aaeddb9fa1c`
 - Extracted source rows: 3,171,232 search candidates; 7,493,102 recommendation events; 4,157,219 item records.
 - Implemented fields: actual query-to-caption lexical relevance, exposure-bound search slates, historical recommendation/search actions, and author/category graph support.
-- Pending evidence: derived SQLite index, bounded smoke replay, and metric output.
+- Derived SQLite index: 4,157,218 items; 267,608 search sessions; 3,171,231 shown search candidates; 7,493,101 recommendation events.
+- Smoke replay: 1,000 chronological sessions requested; 955 sessions with a positive label evaluated.
+- Smoke output: `results/kuaisar-small-smoke.json` (local, not committed).
+- Pending evidence: temporal train/dev split, train-only configuration selection, and one frozen held-out replay.
 
 ## Next update
 
