@@ -18,8 +18,8 @@ and blockers. Update it in the same commit that changes a stage's state.
 | ID | Stage | State | Evidence / transition requirement |
 |---|---|---|---|
 | S0 | Shared replay core | `COMPLETE` | Chronological replay, profile/query/context intent types, local SQLite ordering, and four automated checks are committed. |
-| S1 | MINDsmall train-only tuning | `IN_PROGRESS` | Add a reproducible configuration sweep. Select using train metrics only. |
-| S2 | MINDsmall frozen validation | `PENDING` | Run exactly one held-out dev evaluation with the S1 configuration and record all baselines and ablations. |
+| S1 | MINDsmall train-only tuning | `COMPLETE` | Six variants were evaluated on train only; `a065_frequency_h72` was selected by nDCG@10. |
+| S2 | MINDsmall frozen validation | `IN_PROGRESS` | Run exactly one held-out dev evaluation with the S1 configuration and record all baselines and ablations. |
 | S3 | MINDlarge scale confirmation | `BLOCKED` | Requires locally supplied MINDlarge train and dev archives. No tuning is permitted at this stage. |
 | S4 | KuaiSAR query-aware replay | `PENDING` | Add actual query-to-caption relevance, multi-action history, and exposed-slate ranking. |
 | S5 | Controlled lifecycle validation | `PENDING` | Define deterministic pin, archive, restore, correction, and graph-disconnection scenarios. |
@@ -54,7 +54,20 @@ default full score has not yet exceeded frequency on the dev MRR or nDCG@10
 measure. S1 must determine whether a train-selected configuration changes that
 result; otherwise frequency remains the stronger baseline.
 
+### S1 — complete
+
+- Selection run: `results/mindsmall-train-sweep.json` (local, not committed)
+- Eligible episodes: 156,073
+- Selection metric: nDCG@10
+- Selected variant: `a065_frequency_h72`
+- Selected train nDCG@10: 0.3785
+- Frequency-only train nDCG@10: 0.3713
+- Frozen configuration: `configs/mindsmall-frozen.json`
+
+The selection was performed entirely on the MINDsmall train split. The next
+run must use the frozen values unchanged on the dev split.
+
 ## Next update
 
-S1 will record the candidate configurations, selection metric, selected
-configuration, and its train-only score before S2 begins.
+S2 will record the single frozen dev result and whether it exceeds the
+frequency baseline on the primary metric.

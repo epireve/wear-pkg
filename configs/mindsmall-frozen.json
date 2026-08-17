@@ -1,0 +1,15 @@
+{
+  "source_stage": "S1",
+  "selection_metric": "ndcg@10",
+  "selected_variant": "a065_frequency_h72",
+  "alpha": 0.65,
+  "half_life_hours": 72,
+  "min_observed_history": 1,
+  "use_provided_history": true,
+  "weights": {
+    "recency": 0.15,
+    "frequency": 0.5,
+    "context": 0.15,
+    "graph": 0.2
+  }
+}
