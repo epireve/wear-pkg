@@ -14,6 +14,7 @@ def _mind_run(arguments: argparse.Namespace) -> int:
         half_life_hours=arguments.half_life_hours,
         min_observed_history=arguments.min_observed_history,
         salience_weights=SalienceWeights(arguments.weight_recency, arguments.weight_frequency, arguments.weight_context, arguments.weight_graph),
+        use_provided_history=arguments.use_provided_history,
     )
     try:
         result = evaluate_mind(arguments.dataset_dir, config)
@@ -35,6 +36,7 @@ def main() -> int:
     mind.add_argument("--alpha", type=float, default=0.75, help="Profile-relevance weight in the final Wear-PKG score")
     mind.add_argument("--half-life-hours", type=float, default=24.0)
     mind.add_argument("--min-observed-history", type=int, default=1)
+    mind.add_argument("--use-provided-history", action="store_true", help="Use MIND's supplied history for profile/frequency/context/graph, never recency")
     mind.add_argument("--weight-recency", type=float, default=0.25)
     mind.add_argument("--weight-frequency", type=float, default=0.25)
     mind.add_argument("--weight-context", type=float, default=0.25)

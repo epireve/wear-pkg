@@ -42,24 +42,43 @@ def raw_features(
     history: Iterable[InteractionEvent],
     now: datetime,
     half_life_hours: float,
+    seed_concepts: Iterable[frozenset[str]] = (),
+    seed_contexts: Iterable[frozenset[str]] = (),
 ) -> RawSalience:
     events = list(history)
-    related = [(event, _overlap(candidate_concepts, event.concepts)) for event in events]
-    related = [(event, similarity) for event, similarity in related if similarity > 0]
-    if not related:
+    related_events = [(event, _overlap(candidate_concepts, event.concepts)) for event in events]
+    related_events = [(event, similarity) for event, similarity in related_events if similarity > 0]
+    seed_pairs = list(zip(seed_concepts, seed_contexts, strict=True))
+    related_seeds = [
+        (concepts, contexts, _overlap(candidate_concepts, concepts))
+        for concepts, contexts in seed_pairs
+    ]
+    related_seeds = [(concepts, contexts, similarity) for concepts, contexts, similarity in related_seeds if similarity > 0]
+    if not related_events and not related_seeds:
         return RawSalience(0.0, 0.0, 0.0, 0.0)
 
     half_life_seconds = max(half_life_hours, 0.001) * 3600
     recency = max(
-        similarity * math.exp(-math.log(2) * max((now - event.timestamp).total_seconds(), 0.0) / half_life_seconds)
-        for event, similarity in related
+        (
+            similarity * math.exp(-math.log(2) * max((now - event.timestamp).total_seconds(), 0.0) / half_life_seconds)
+            for event, similarity in related_events
+        ),
+        default=0.0,
     )
-    frequency = sum(similarity for _, similarity in related)
-    historical_contexts = set().union(*(event.contexts for event, _ in related))
+    frequency = sum(similarity for _, similarity in related_events) + sum(similarity for _, _, similarity in related_seeds)
+    historical_contexts = set()
+    for event, _ in related_events:
+        historical_contexts.update(event.contexts)
+    for _concepts, contexts, _ in related_seeds:
+        historical_contexts.update(contexts)
     context = len(candidate_contexts & historical_contexts) / len(candidate_contexts) if candidate_contexts else 0.0
 
     candidate_entities = frozenset(concept for concept in candidate_concepts if concept.startswith("entity:"))
-    historical_entities = set().union(*(event.concepts for event, _ in related))
+    historical_entities = set()
+    for event, _ in related_events:
+        historical_entities.update(event.concepts)
+    for concepts, _contexts, _ in related_seeds:
+        historical_entities.update(concepts)
     graph = len(candidate_entities & historical_entities) / len(candidate_entities) if candidate_entities else 0.0
     return RawSalience(recency, frequency, context, graph)
 

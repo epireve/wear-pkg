@@ -34,7 +34,12 @@ class MindReplayTest(unittest.TestCase):
         result = evaluate_mind(self._dataset(), MindRunConfig(min_observed_history=1))
         self.assertEqual(result["episodes_with_observed_history"], 2)
         self.assertEqual(result["metrics"]["wear_pkg"]["episodes"], 2)
-        self.assertIn("initial history is excluded", result["limitations"][0])
+        self.assertIn("never used for recency", result["limitations"][0])
+
+    def test_provided_history_can_seed_only_non_temporal_signals(self) -> None:
+        result = evaluate_mind(self._dataset(), MindRunConfig(min_observed_history=1, use_provided_history=True))
+        self.assertEqual(result["episodes_with_observed_history"], 3)
+        self.assertTrue(result["config"]["use_provided_history_for_non_temporal_signals"])
 
     def test_query_relevance_is_not_profile_relevance(self) -> None:
         lexical = LexicalRelevance.from_documents({"AI": ("openai", "model"), "SPORT": ("football", "score")})

@@ -34,3 +34,4 @@ class RetrievalEpisode:
     timestamp: datetime
     intent: object
     candidates: Sequence[Candidate]
+    prior_item_ids: Sequence[str] = ()

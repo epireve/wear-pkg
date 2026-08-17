@@ -3,7 +3,6 @@ from __future__ import annotations
 import csv
 import json
 import sqlite3
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -33,6 +32,7 @@ class MindRunConfig:
     half_life_hours: float = 24.0
     min_observed_history: int = 1
     salience_weights: SalienceWeights = SalienceWeights()
+    use_provided_history: bool = False
 
 
 def _entities(value: str) -> tuple[str, ...]:
@@ -73,13 +73,19 @@ def build_event_index(dataset_dir: Path, database_path: Path | None = None) -> P
     database_path = database_path or dataset_dir / ".wear_pkg_behaviors.sqlite3"
     behaviours = dataset_dir / "behaviors.tsv"
     if database_path.exists() and database_path.stat().st_mtime >= behaviours.stat().st_mtime:
-        return database_path
+        existing = sqlite3.connect(database_path)
+        try:
+            columns = {row[1] for row in existing.execute("PRAGMA table_info(episodes)")}
+            if "provided_history" in columns:
+                return database_path
+        finally:
+            existing.close()
     if database_path.exists():
         database_path.unlink()
     connection = sqlite3.connect(database_path)
     try:
         connection.execute(
-            "CREATE TABLE episodes (row_id INTEGER PRIMARY KEY, impression_id TEXT, user_id TEXT, time_ms INTEGER, impressions TEXT)"
+            "CREATE TABLE episodes (row_id INTEGER PRIMARY KEY, impression_id TEXT, user_id TEXT, time_ms INTEGER, provided_history TEXT, impressions TEXT)"
         )
         batch = []
         with behaviours.open("r", encoding="utf-8", newline="") as handle:
@@ -87,15 +93,15 @@ def build_event_index(dataset_dir: Path, database_path: Path | None = None) -> P
             for row_id, row in enumerate(reader):
                 if len(row) < 5:
                     continue
-                impression_id, user_id, timestamp, _history, impressions = row[:5]
+                impression_id, user_id, timestamp, provided_history, impressions = row[:5]
                 if not user_id:
                     continue
-                batch.append((row_id, impression_id, user_id, _parse_timestamp(timestamp), impressions))
+                batch.append((row_id, impression_id, user_id, _parse_timestamp(timestamp), provided_history, impressions))
                 if len(batch) >= 20_000:
-                    connection.executemany("INSERT INTO episodes VALUES (?, ?, ?, ?, ?)", batch)
+                    connection.executemany("INSERT INTO episodes VALUES (?, ?, ?, ?, ?, ?)", batch)
                     batch.clear()
         if batch:
-            connection.executemany("INSERT INTO episodes VALUES (?, ?, ?, ?, ?)", batch)
+            connection.executemany("INSERT INTO episodes VALUES (?, ?, ?, ?, ?, ?)", batch)
         connection.execute("CREATE INDEX idx_episodes_user_time ON episodes(user_id, time_ms, row_id)")
         connection.commit()
     finally:
@@ -106,8 +112,8 @@ def build_event_index(dataset_dir: Path, database_path: Path | None = None) -> P
 def iter_episodes(database_path: Path) -> Iterator[RetrievalEpisode]:
     connection = sqlite3.connect(database_path)
     try:
-        cursor = connection.execute("SELECT impression_id, user_id, time_ms, impressions FROM episodes ORDER BY user_id, time_ms, row_id")
-        for impression_id, user_id, time_ms, impressions in cursor:
+        cursor = connection.execute("SELECT impression_id, user_id, time_ms, provided_history, impressions FROM episodes ORDER BY user_id, time_ms, row_id")
+        for impression_id, user_id, time_ms, provided_history, impressions in cursor:
             candidates = []
             for token in impressions.split():
                 try:
@@ -120,8 +126,9 @@ def iter_episodes(database_path: Path) -> Iterator[RetrievalEpisode]:
                     episode_id=impression_id,
                     user_id=user_id,
                     timestamp=datetime.fromtimestamp(time_ms / 1000),
-                    intent=ProfileIntent(()),
+                    intent=ProfileIntent(tuple(provided_history.split())),
                     candidates=tuple(candidates),
+                    prior_item_ids=tuple(provided_history.split()),
                 )
     finally:
         connection.close()
@@ -153,8 +160,12 @@ def evaluate_mind(dataset_dir: Path, config: MindRunConfig = MindRunConfig()) ->
             history = []
         present = [candidate for candidate in episode.candidates if candidate.item_id in items]
         skipped_unknown_items += len(episode.candidates) - len(present)
-        if len(history) >= config.min_observed_history and present:
-            intent = ProfileIntent(tuple(event.item_id for event in history))
+        observed_item_ids = tuple(event.item_id for event in history)
+        provided_item_ids = tuple(item_id for item_id in episode.prior_item_ids if item_id in items)
+        profile_item_ids = provided_item_ids if config.use_provided_history and provided_item_ids else observed_item_ids
+        seed_item_ids = tuple(item_id for item_id in provided_item_ids if item_id not in set(observed_item_ids)) if config.use_provided_history else ()
+        if len(profile_item_ids) >= config.min_observed_history and present:
+            intent = ProfileIntent(profile_item_ids)
             raw = {
                 candidate.item_id: raw_features(
                     items[candidate.item_id].concepts,
@@ -162,6 +173,8 @@ def evaluate_mind(dataset_dir: Path, config: MindRunConfig = MindRunConfig()) ->
                     history,
                     episode.timestamp,
                     config.half_life_hours,
+                    seed_concepts=(items[item_id].concepts for item_id in seed_item_ids),
+                    seed_contexts=(items[item_id].contexts for item_id in seed_item_ids),
                 )
                 for candidate in present
             }
@@ -203,12 +216,13 @@ def evaluate_mind(dataset_dir: Path, config: MindRunConfig = MindRunConfig()) ->
             "half_life_hours": config.half_life_hours,
             "min_observed_history": config.min_observed_history,
             "salience_weights": config.salience_weights.__dict__,
+            "use_provided_history_for_non_temporal_signals": config.use_provided_history,
         },
         "episodes_with_observed_history": eligible_episodes,
         "unknown_candidate_items_skipped": skipped_unknown_items,
         "metrics": {name: accumulator.as_dict() for name, accumulator in metrics.items()},
         "limitations": [
-            "MIND initial history is excluded from timestamped wear because individual event times are unavailable.",
+            "MIND-provided history is never used for recency because individual event times are unavailable.",
             "Click labels are implicit engagement under the logged news policy, not relevance or personal importance labels.",
             "This evaluates profile relevance plus graph-propagated salience, not query-conditioned retrieval.",
         ],
