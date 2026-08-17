@@ -17,6 +17,23 @@ URLS = {
 }
 
 
+def normalise_dataset_root(target: Path) -> None:
+    """Flatten the single wrapper directory used by official MIND archives."""
+    if (target / "news.tsv").is_file() and (target / "behaviors.tsv").is_file():
+        return
+    wrappers = [
+        child
+        for child in target.iterdir()
+        if child.is_dir() and (child / "news.tsv").is_file() and (child / "behaviors.tsv").is_file()
+    ]
+    if len(wrappers) != 1:
+        raise SystemExit(f"error: could not find one MIND dataset root below {target}")
+    wrapper = wrappers[0]
+    for child in wrapper.iterdir():
+        shutil.move(str(child), target / child.name)
+    wrapper.rmdir()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", choices=("small", "large"), required=True)
@@ -55,6 +72,7 @@ def main() -> int:
     with zipfile.ZipFile(archive) as zipped:
         zipped.extractall(target)
     archive.unlink()
+    normalise_dataset_root(target)
     print(f"Extracted {target}")
     return 0
 
