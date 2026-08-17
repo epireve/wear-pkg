@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Raw corpora and generated experiment artefacts stay local.
+data/
+results/
+*.sqlite3

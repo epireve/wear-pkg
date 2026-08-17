@@ -1,0 +1,97 @@
+# Wear-PKG POC
+
+This repository implements the first empirical layer of the dissertation POC:
+chronological, leakage-safe re-ranking of MIND impression candidates using a
+historical interaction profile and inspectable salience features.
+
+MIND has no issued queries. The implementation therefore calls its relevance
+signal **profile relevance**, never query relevance. The same core exposes a
+query-aware intent interface for KuaiSAR and a context-aware interface for
+RLKWiC; neither is fabricated from MIND labels or future candidates.
+
+## What the MIND experiment claims
+
+For each MIND impression, the system uses only clicks observed in earlier,
+timestamped impressions for that user. It compares:
+
+- profile relevance only;
+- recency only;
+- frequency only;
+- recency plus frequency;
+- full MIND-compatible salience: recency, frequency, contextual reuse, and
+  graph support;
+- profile relevance plus full salience.
+
+The clicked candidates are implicit engagement labels under MIND's logged
+news policy, not ground-truth relevance, importance, or archival behaviour.
+The initial MIND `history` column is intentionally not used for timestamped
+wear because its individual click times are unavailable.
+
+## Install
+
+The core has no third-party runtime dependency.
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e .
+```
+
+## Download and run MINDsmall
+
+```bash
+.venv/bin/python scripts/fetch_mind.py --dataset small --split train
+.venv/bin/python scripts/fetch_mind.py --dataset small --split dev
+
+.venv/bin/wear-pkg mind-run \
+  --dataset-dir data/MINDsmall_train \
+  --output results/mindsmall-train.json
+```
+
+The legacy Microsoft Blob URLs currently reject unauthenticated requests. The
+fetcher still attempts the official endpoint, but it also accepts a researcher-
+authorised archive or URL without embedding a third-party mirror in the project:
+
+```bash
+.venv/bin/python scripts/fetch_mind.py --dataset small --split train --archive /path/to/MINDsmall_train.zip
+```
+
+Tune choices on the training output only. Freeze the configuration before
+using `MINDsmall_dev` for a final small-scale result. Run the same frozen
+configuration against MINDlarge afterwards; MINDsmall and MINDlarge are one
+dataset family, not independent replications.
+
+Useful options:
+
+```bash
+.venv/bin/wear-pkg mind-run --help
+```
+
+The runner creates a local SQLite event index beside the dataset on first run.
+It allows MINDlarge to be replayed by user and timestamp without loading all
+behaviour rows into memory.
+
+## Dataset-agnostic intent contract
+
+```text
+RetrievalEpisode
+  intent = QueryIntent | ProfileIntent | ContextIntent
+  candidates = exposed or otherwise defined candidate items
+  history = only events before the episode timestamp
+```
+
+- **MIND:** `ProfileIntent`; title, abstract and linked entities provide a
+  profile-relevance baseline.
+- **KuaiSAR:** `QueryIntent`; actual query tokens are matched with item
+  captions, then historical multi-action salience re-ranks the exposed slate.
+- **RLKWiC:** `ContextIntent`; user-defined work context is matched with
+  resources/entities, then real personal-KG activity supplies salience.
+
+## Validation
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+The tests use a tiny synthetic MIND corpus. They verify that future clicks are
+not visible to earlier impressions, the first impression has no usable observed
+history, and actual query relevance is independent from profile relevance.

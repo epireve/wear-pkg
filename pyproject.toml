@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wear-pkg-poc"
+version = "0.1.0"
+description = "Leakage-safe temporal replay for the Wear-PKG dissertation POC"
+requires-python = ">=3.11"
+
+[project.scripts]
+wear-pkg = "wear_pkg.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
