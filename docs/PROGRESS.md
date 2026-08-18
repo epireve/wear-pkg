@@ -90,7 +90,10 @@ it would require a new, separately documented selection stage.
 - Smoke output: `results/kuaisar-small-smoke.json` (local, not committed).
 - Temporal partitioning verified: an 80/20 global session-time split has cutoff `2023-05-28T01:44:45.498000+00:00`; events at the same timestamp are excluded from the current session's history.
 - Automated checks: 7 passing tests, including a synthetic single-boundary temporal partition test.
-- Pending evidence: train-only configuration selection and one frozen held-out replay.
+- Train-only selection: `results/kuaisar-small-train-sweep.json` (local, not committed); 267,608 sessions, 80/20 timestamp split, nDCG@10 selection metric.
+- Selected variant: `a050_balanced_h24`; full score nDCG@10 0.5328, compared with frequency 0.5288 and action 0.5289.
+- Frozen configuration: `configs/kuaisar-frozen.json`; it must be run unchanged on the later time segment.
+- Pending evidence: one frozen held-out replay.
 
 ### S3 — complete
 
