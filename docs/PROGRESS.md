@@ -143,8 +143,15 @@ on every recorded ranking metric.
   and term tables needed for replay.
 - Replay unit: timestamped recommendation slates with at least two candidates
   and at least one human-positive score; 278 such slates are available.
-- Pending evidence: train-only configuration selection and one frozen
-  later-segment replay.
+- Train-only selection: `results/rlkwic-train-sweep.json` (local, not
+  committed); 207 eligible slates, 80/20 timestamp split, nDCG@10 selection
+  metric.
+- Selected variant: `a080_equal_h24`; full score nDCG@10 0.9469. The
+  event-lexical baseline is higher at 0.9504, so this benchmark must not be
+  presented as evidence that the full score dominates direct event matching.
+- Frozen configuration: `configs/rlkwic-frozen.json`; it must be run unchanged
+  on the later time segment.
+- Pending evidence: one frozen later-segment replay.
 
 ## Next update
 
