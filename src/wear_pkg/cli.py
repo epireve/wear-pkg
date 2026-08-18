@@ -64,12 +64,19 @@ def _mind_sweep(arguments: argparse.Namespace) -> int:
     metric = source.get("selection_metric", "ndcg@10")
     if metric not in {"mrr", "ndcg@5", "ndcg@10", "recall@5", "recall@10"}:
         raise SystemExit(f"error: unsupported selection metric: {metric}")
-    selected_id, selected = max(result["variants"].items(), key=lambda pair: (pair[1]["metrics"][metric], pair[0]))
-    result["selection"] = {"metric": metric, "variant_id": selected_id, "metric_value": selected["metrics"][metric]}
+    if source.get("comparison_variant_id"):
+        result["diagnostic"] = {
+            "metric": metric,
+            "reference_variant": source["comparison_variant_id"],
+            "purpose": "fixed-configuration ablation; no configuration was selected",
+        }
+    else:
+        selected_id, selected = max(result["variants"].items(), key=lambda pair: (pair[1]["metrics"][metric], pair[0]))
+        result["selection"] = {"metric": metric, "variant_id": selected_id, "metric_value": selected["metrics"][metric]}
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"Wrote {arguments.output}")
-    print(json.dumps(result["selection"], indent=2, sort_keys=True))
+    print(json.dumps(result["diagnostic"] if "diagnostic" in result else result["selection"], indent=2, sort_keys=True))
     return 0
 
 
@@ -139,12 +146,19 @@ def _kuaisar_sweep(arguments: argparse.Namespace) -> int:
     metric = source.get("selection_metric", "ndcg@10")
     if metric not in {"mrr", "ndcg@5", "ndcg@10", "recall@5", "recall@10"}:
         raise SystemExit(f"error: unsupported selection metric: {metric}")
-    selected_id, selected = max(result["variants"].items(), key=lambda pair: (pair[1]["metrics"]["wear_pkg"][metric], pair[0]))
-    result["selection"] = {"metric": metric, "variant_id": selected_id, "metric_value": selected["metrics"]["wear_pkg"][metric]}
+    if source.get("comparison_variant_id"):
+        result["diagnostic"] = {
+            "metric": metric,
+            "reference_variant": source["comparison_variant_id"],
+            "purpose": "fixed-configuration ablation; no configuration was selected",
+        }
+    else:
+        selected_id, selected = max(result["variants"].items(), key=lambda pair: (pair[1]["metrics"]["wear_pkg"][metric], pair[0]))
+        result["selection"] = {"metric": metric, "variant_id": selected_id, "metric_value": selected["metrics"]["wear_pkg"][metric]}
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"Wrote {arguments.output}")
-    print(json.dumps(result["selection"], indent=2, sort_keys=True))
+    print(json.dumps(result["diagnostic"] if "diagnostic" in result else result["selection"], indent=2, sort_keys=True))
     return 0
 
 
