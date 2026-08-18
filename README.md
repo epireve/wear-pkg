@@ -198,6 +198,12 @@ PYTHONPATH=src python3 -m wear_pkg.cli kuaisar-sweep \
 Each output includes paired user-cluster uncertainty for every removal versus
 the declared full configuration.
 
+## Scope boundary
+
+This project evaluates reproducible ranking and controlled lifecycle-policy
+behaviour. It does not include a structured human review, so it makes no claim
+about explanation usefulness, perceived safety, trust, or archive acceptance.
+
 ## Dataset-agnostic intent contract
 
 ```text

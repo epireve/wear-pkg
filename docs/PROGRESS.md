@@ -27,6 +27,7 @@ and blockers. Update it in the same commit that changes a stage's state.
 | S7 | Paired uncertainty checks | `COMPLETE` | MINDlarge and corrected KuaiSAR have entirely positive user-cluster nDCG@10 intervals; RLKWiC is inconclusive at its small participant count. |
 | S8 | Frozen signal-ablation diagnostics | `COMPLETE` | Fixed full-versus-signal-removal comparisons are complete with 1,000 paired user-cluster resamples; no configuration was selected. |
 | S9 | Controlled StableLow archive policy | `COMPLETE` | The policy, reason codes, safety gates, and eight deterministic end-to-end scenarios are implemented and verified. |
+| S10 | Human-review scope decision | `COMPLETE` | Deliberately out of scope. No claim is made about explanation usefulness, perceived safety, or acceptance by people. |
 
 ## Evidence recorded so far
 
@@ -237,6 +238,13 @@ point estimate remains positive but is inconclusive at its available scale.
 - Initial local validation: 8 of 8 deterministic scenarios pass in
   `results/lifecycle-stablelow-validation.json` (local, not committed).
 
-All technical evaluation stages currently planned are complete. A structured
-human review or an explicit scope statement remains a separate approval and
-writing decision; it has not been represented as completed evidence.
+### S10 — complete (out of scope)
+
+- Decision: no structured human review is part of this evaluation.
+- Supported claims are limited to reproducible ranking behaviour, signal
+  sensitivity, and controlled archive-policy behaviour.
+- Unsupported claims: explanation usefulness, perceived safety, trust, and
+  archive acceptance by people. These remain future validation, not evidence
+  supplied by this repository.
+
+All planned stages are complete.

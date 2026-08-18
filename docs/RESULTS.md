@@ -79,8 +79,16 @@ only returns an explanation and eligibility decision; it never archives an
 item automatically.
 
 This is controlled technical evidence of policy behaviour and reversibility.
-It does not measure whether people would agree with a recommendation or find
-its explanation useful.
+It does not measure whether people would agree with a recommendation, find its
+explanation useful, perceive it as safe, or accept an archive recommendation.
+
+## Scope boundary
+
+No structured human review is included. The results support technical
+feasibility, reproducible ranking behaviour, sensitivity to signal removal,
+and controlled lifecycle-policy behaviour. They do not support claims about
+human understanding, trust, perceived safety, explanation usefulness, or
+archive acceptance.
 
 ## Important boundaries
 
