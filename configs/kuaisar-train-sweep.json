@@ -1,0 +1,38 @@
+{
+  "selection_metric": "ndcg@10",
+  "partition": "train",
+  "train_fraction": 0.8,
+  "min_history_events": 1,
+  "variants": [
+    {
+      "id": "a020_frequency_action_h24",
+      "alpha": 0.2,
+      "half_life_hours": 24,
+      "weights": {"recency": 0.1, "frequency": 0.35, "action": 0.35, "context": 0.1, "graph": 0.1}
+    },
+    {
+      "id": "a035_frequency_action_h72",
+      "alpha": 0.35,
+      "half_life_hours": 72,
+      "weights": {"recency": 0.1, "frequency": 0.35, "action": 0.35, "context": 0.1, "graph": 0.1}
+    },
+    {
+      "id": "a050_balanced_h24",
+      "alpha": 0.5,
+      "half_life_hours": 24,
+      "weights": {"recency": 0.2, "frequency": 0.2, "action": 0.2, "context": 0.2, "graph": 0.2}
+    },
+    {
+      "id": "a065_frequency_action_h72",
+      "alpha": 0.65,
+      "half_life_hours": 72,
+      "weights": {"recency": 0.1, "frequency": 0.35, "action": 0.35, "context": 0.1, "graph": 0.1}
+    },
+    {
+      "id": "a080_balanced_h72",
+      "alpha": 0.8,
+      "half_life_hours": 72,
+      "weights": {"recency": 0.2, "frequency": 0.2, "action": 0.2, "context": 0.2, "graph": 0.2}
+    }
+  ]
+}

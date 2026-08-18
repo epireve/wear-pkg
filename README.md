@@ -96,8 +96,22 @@ search interactions for salience.
 ```bash
 .venv/bin/wear-pkg kuaisar-run \
   --dataset-dir data/KuaiSAR-small \
+  --partition train \
+  --train-fraction 0.8 \
   --max-sessions 1000 \
   --output results/kuaisar-small-smoke.json
+```
+
+Use the earlier temporal partition for configuration selection, then freeze the
+selected values for one later-partition run. The split boundary is calculated
+from all search-session timestamps; history still contains only events strictly
+earlier than each scored session.
+
+```bash
+.venv/bin/wear-pkg kuaisar-sweep \
+  --dataset-dir data/KuaiSAR-small \
+  --config configs/kuaisar-train-sweep.json \
+  --output results/kuaisar-small-train-sweep.json
 ```
 
 The initial run is intentionally bounded. Remove `--max-sessions` only after

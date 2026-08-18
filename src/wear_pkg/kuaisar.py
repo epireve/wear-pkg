@@ -6,11 +6,23 @@ import math
 import sqlite3
 from collections import OrderedDict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator
+from typing import Mapping
 
 from .metrics import MetricAccumulator
+
+
+@dataclass(frozen=True)
+class KuaiSarWeights:
+    recency: float = 0.15
+    frequency: float = 0.30
+    action: float = 0.30
+    context: float = 0.10
+    graph: float = 0.15
+
+
+DEFAULT_KUAISAR_WEIGHTS = KuaiSarWeights()
 
 
 @dataclass(frozen=True)
@@ -19,6 +31,9 @@ class KuaiSarConfig:
     half_life_hours: float = 72.0
     min_history_events: int = 1
     max_sessions: int | None = None
+    partition: str = "all"
+    train_fraction: float = 0.8
+    salience_weights: KuaiSarWeights = DEFAULT_KUAISAR_WEIGHTS
 
 
 @dataclass(frozen=True)
@@ -162,7 +177,60 @@ def _rank(values: list[tuple[int, float, str]]) -> list[int]:
     return [label for label, _score, _item_id in sorted(values, key=lambda value: (-value[1], value[2]))]
 
 
-def evaluate_kuaisar(dataset_dir: Path, config: KuaiSarConfig = KuaiSarConfig()) -> dict:
+def _config_dict(config: KuaiSarConfig) -> dict:
+    return {
+        "alpha": config.alpha,
+        "half_life_hours": config.half_life_hours,
+        "min_history_events": config.min_history_events,
+        "max_sessions": config.max_sessions,
+        "partition": config.partition,
+        "train_fraction": config.train_fraction,
+        "salience_weights": config.salience_weights.__dict__,
+    }
+
+
+def _partition_details(connection: sqlite3.Connection, config: KuaiSarConfig) -> dict:
+    if config.partition not in {"all", "train", "dev"}:
+        raise ValueError("partition must be one of: all, train, dev")
+    if not 0.0 < config.train_fraction < 1.0:
+        raise ValueError("train_fraction must be between 0 and 1")
+    total_sessions = connection.execute("SELECT COUNT(*) FROM search_sessions").fetchone()[0]
+    if config.partition == "all":
+        return {"partition": "all", "total_sessions": total_sessions}
+    if total_sessions < 2:
+        raise ValueError("KuaiSAR evaluation needs at least two search sessions for a temporal partition")
+    offset = min(max(int(total_sessions * config.train_fraction), 1), total_sessions - 1)
+    cutoff_ms = connection.execute(
+        "SELECT time_ms FROM search_sessions ORDER BY time_ms, session_key LIMIT 1 OFFSET ?", (offset,)
+    ).fetchone()[0]
+    return {
+        "partition": config.partition,
+        "total_sessions": total_sessions,
+        "train_fraction": config.train_fraction,
+        "cutoff_timestamp_ms": cutoff_ms,
+        "cutoff_utc": datetime.fromtimestamp(cutoff_ms / 1000, tz=timezone.utc).isoformat(),
+        "rule": "train sessions precede the cutoff; dev sessions are at or after the cutoff",
+    }
+
+
+def _should_evaluate(time_ms: int, details: dict) -> bool:
+    partition = details["partition"]
+    if partition == "all":
+        return True
+    if partition == "train":
+        return time_ms < details["cutoff_timestamp_ms"]
+    return time_ms >= details["cutoff_timestamp_ms"]
+
+
+def _evaluate_kuaisar_variants(dataset_dir: Path, variants: Mapping[str, KuaiSarConfig]) -> dict:
+    if not variants:
+        raise ValueError("at least one KuaiSAR variant is required")
+    configurations = list(variants.values())
+    reference = configurations[0]
+    shared = ("partition", "train_fraction", "min_history_events", "max_sessions")
+    for config in configurations[1:]:
+        if any(getattr(config, name) != getattr(reference, name) for name in shared):
+            raise ValueError("KuaiSAR sweep variants must share partition, train_fraction, min_history_events, and max_sessions")
     database_path = build_index(dataset_dir)
     connection = sqlite3.connect(database_path)
     item_cache: OrderedDict[str, Item | None] = OrderedDict()
@@ -178,7 +246,9 @@ def evaluate_kuaisar(dataset_dir: Path, config: KuaiSarConfig = KuaiSarConfig())
             item_cache.popitem(last=False)
         return value
 
-    metrics = {name: MetricAccumulator() for name in ("query_lexical", "frequency", "action", "salience", "wear_pkg")}
+    partition_details = _partition_details(connection, reference)
+    metric_names = ("query_lexical", "frequency", "action", "salience", "wear_pkg")
+    metrics = {variant_id: {name: MetricAccumulator() for name in metric_names} for variant_id in variants}
     sessions = connection.execute("SELECT session_key, user_id, time_ms, keyword, source FROM search_sessions ORDER BY user_id, time_ms, session_key")
     prior_user: str | None = None
     prior_time = -1
@@ -203,32 +273,60 @@ def evaluate_kuaisar(dataset_dir: Path, config: KuaiSarConfig = KuaiSarConfig())
                 candidate_item = item(candidate_id)
                 if candidate_item:
                     candidates.append((candidate_item, click))
-            if len(history) >= config.min_history_events and candidates:
+            if _should_evaluate(time_ms, partition_details) and len(history) >= reference.min_history_events and candidates:
                 raw = []
-                half_life = max(config.half_life_hours, 0.001) * 3600 * 1000
                 for candidate, click in candidates:
-                    related = [(event, _overlap(candidate.concepts, event.item.concepts)) for event in history]
+                    related = [
+                        (event, _overlap(candidate.concepts, event.item.concepts))
+                        for event in history
+                        if event.timestamp_ms < time_ms
+                    ]
                     related = [(event, similarity) for event, similarity in related if similarity > 0]
-                    recency = max((similarity * math.exp(-math.log(2) * (time_ms - event.timestamp_ms) / half_life) for event, similarity in related), default=0.0)
                     frequency = sum(similarity for _, similarity in related)
                     action = sum(similarity * event.action_strength for event, similarity in related)
                     context = min(1.0, len({event.source for event, _ in related}) / 2)
                     graph = max((1.0 if candidate.author == event.item.author else 0.0 for event, _ in related), default=0.0)
                     relevance = _overlap(query, candidate.tokens)
-                    raw.append((candidate, click, relevance, recency, frequency, action, context, graph))
-                maxima = [max((row[index] for row in raw), default=0.0) for index in range(3, 8)]
-                scored = []
-                for candidate, click, relevance, recency, frequency, action, context, graph in raw:
-                    features = [value / maximum if maximum else 0.0 for value, maximum in zip((recency, frequency, action, context, graph), maxima, strict=True)]
-                    salience = 0.15 * features[0] + 0.30 * features[1] + 0.30 * features[2] + 0.10 * features[3] + 0.15 * features[4]
-                    scored.append((candidate.item_id, click, relevance, features, salience))
-                metrics["query_lexical"].add(_rank([(click, relevance, item_id) for item_id, click, relevance, _, _ in scored]))
-                metrics["frequency"].add(_rank([(click, features[1], item_id) for item_id, click, _, features, _ in scored]))
-                metrics["action"].add(_rank([(click, features[2], item_id) for item_id, click, _, features, _ in scored]))
-                metrics["salience"].add(_rank([(click, salience, item_id) for item_id, click, _, _, salience in scored]))
-                metrics["wear_pkg"].add(_rank([(click, config.alpha * relevance + (1 - config.alpha) * salience, item_id) for item_id, click, relevance, _, salience in scored]))
+                    raw.append((candidate, click, relevance, related, frequency, action, context, graph))
+                for variant_id, config in variants.items():
+                    half_life = max(config.half_life_hours, 0.001) * 3600 * 1000
+                    scored = []
+                    for candidate, click, relevance, related, frequency, action, context, graph in raw:
+                        recency = max(
+                            (similarity * math.exp(-math.log(2) * (time_ms - event.timestamp_ms) / half_life) for event, similarity in related),
+                            default=0.0,
+                        )
+                        scored.append((candidate.item_id, click, relevance, recency, frequency, action, context, graph))
+                    maxima = [max((row[index] for row in scored), default=0.0) for index in range(3, 8)]
+                    normalised = [
+                        (item_id, click, relevance, [value / maximum if maximum else 0.0 for value, maximum in zip((recency, frequency, action, context, graph), maxima, strict=True)])
+                        for item_id, click, relevance, recency, frequency, action, context, graph in scored
+                    ]
+                    weights = config.salience_weights
+                    final = [
+                        (
+                            item_id,
+                            click,
+                            relevance,
+                            features,
+                            sum(
+                                weight * feature
+                                for weight, feature in zip(
+                                    (weights.recency, weights.frequency, weights.action, weights.context, weights.graph),
+                                    features,
+                                    strict=True,
+                                )
+                            ),
+                        )
+                        for item_id, click, relevance, features in normalised
+                    ]
+                    metrics[variant_id]["query_lexical"].add(_rank([(click, relevance, item_id) for item_id, click, relevance, _, _ in final]))
+                    metrics[variant_id]["frequency"].add(_rank([(click, features[1], item_id) for item_id, click, _, features, _ in final]))
+                    metrics[variant_id]["action"].add(_rank([(click, features[2], item_id) for item_id, click, _, features, _ in final]))
+                    metrics[variant_id]["salience"].add(_rank([(click, salience, item_id) for item_id, click, _, _, salience in final]))
+                    metrics[variant_id]["wear_pkg"].add(_rank([(click, config.alpha * relevance + (1 - config.alpha) * salience, item_id) for item_id, click, relevance, _, salience in final]))
                 ranked_sessions += 1
-                if config.max_sessions and ranked_sessions >= config.max_sessions:
+                if reference.max_sessions and ranked_sessions >= reference.max_sessions:
                     break
             for candidate, click in candidates:
                 if click:
@@ -239,11 +337,29 @@ def evaluate_kuaisar(dataset_dir: Path, config: KuaiSarConfig = KuaiSarConfig())
         "dataset": "KuaiSAR",
         "intent_mode": "actual_query_to_caption",
         "ranked_sessions": ranked_sessions,
-        "config": config.__dict__,
-        "metrics": {name: accumulator.as_dict() for name, accumulator in metrics.items()},
+        "temporal_partition": partition_details,
+        "variants": {
+            variant_id: {
+                "config": _config_dict(config),
+                "metrics": {name: accumulator.as_dict() for name, accumulator in metrics[variant_id].items()},
+            }
+            for variant_id, config in variants.items()
+        },
         "limitations": [
             "The small release covers a short observation window.",
             "Hashed tokens support lexical matching but not human-readable semantic explanations.",
             "Search click labels are implicit feedback and may be affected by automatic playback.",
         ],
     }
+
+
+def evaluate_kuaisar(dataset_dir: Path, config: KuaiSarConfig = KuaiSarConfig()) -> dict:
+    result = _evaluate_kuaisar_variants(dataset_dir, {"single": config})
+    single = result.pop("variants")["single"]
+    result["config"] = single["config"]
+    result["metrics"] = single["metrics"]
+    return result
+
+
+def evaluate_kuaisar_sweep(dataset_dir: Path, variants: Mapping[str, KuaiSarConfig]) -> dict:
+    return _evaluate_kuaisar_variants(dataset_dir, variants)

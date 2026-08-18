@@ -88,7 +88,9 @@ it would require a new, separately documented selection stage.
 - Derived SQLite index: 4,157,218 items; 267,608 search sessions; 3,171,231 shown search candidates; 7,493,101 recommendation events.
 - Smoke replay: 1,000 chronological sessions requested; 955 sessions with a positive label evaluated.
 - Smoke output: `results/kuaisar-small-smoke.json` (local, not committed).
-- Pending evidence: temporal train/dev split, train-only configuration selection, and one frozen held-out replay.
+- Temporal partitioning verified: an 80/20 global session-time split has cutoff `2023-05-28T01:44:45.498000+00:00`; events at the same timestamp are excluded from the current session's history.
+- Automated checks: 7 passing tests, including a synthetic single-boundary temporal partition test.
+- Pending evidence: train-only configuration selection and one frozen held-out replay.
 
 ### S3 — complete
 

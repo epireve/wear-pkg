@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from wear_pkg.intent import ProfileIntent, QueryIntent
-from wear_pkg.kuaisar import KuaiSarConfig, evaluate_kuaisar
+from wear_pkg.kuaisar import KuaiSarConfig, evaluate_kuaisar, evaluate_kuaisar_sweep
 from wear_pkg.mind import MindRunConfig, evaluate_mind, evaluate_mind_sweep
 from wear_pkg.salience import SalienceWeights
 from wear_pkg.relevance import LexicalRelevance
@@ -94,6 +94,44 @@ class MindReplayTest(unittest.TestCase):
         self.assertEqual(result["intent_mode"], "actual_query_to_caption")
         self.assertEqual(result["ranked_sessions"], 1)
         self.assertEqual(result["metrics"]["query_lexical"]["episodes"], 1)
+
+    def test_kuaisar_temporal_partition_has_a_single_timestamp_boundary(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name) / "KuaiSAR_final"
+        root.mkdir()
+        (root / "item_features.csv").write_text(
+            "item_id,caption,author_id,item_type,upload_time,upload_type,music_id,first_level_category_id,first_level_category_name,second_level_category_id\n"
+            "1,[1],10,NORMAL,2023-01-01,UNKNOWN,0,1,a,11\n"
+            "2,[2],10,NORMAL,2023-01-01,UNKNOWN,0,1,a,11\n"
+            "3,[3],20,NORMAL,2023-01-01,UNKNOWN,0,2,b,22\n",
+            encoding="utf-8",
+        )
+        (root / "src_inter.csv").write_text(
+            "keyword,item_id,click_cnt,search_session_id,item_type,user_id,search_session_timestamp,search_source,search_session_time\n"
+            '"[2]",2,1,1,VIDEO,U1,2000,USER_INPUT,2023-01-01 00:00:02\n'
+            '"[2]",3,0,1,VIDEO,U1,2000,USER_INPUT,2023-01-01 00:00:02\n'
+            '"[2]",2,1,2,VIDEO,U1,4000,USER_INPUT,2023-01-01 00:00:04\n'
+            '"[2]",3,0,2,VIDEO,U1,4000,USER_INPUT,2023-01-01 00:00:04\n',
+            encoding="utf-8",
+        )
+        (root / "rec_inter.csv").write_text(
+            "user_id,item_id,duration_ms,playing_time,timestamp,forward,like,follow,search_item_related,search,click,time\n"
+            "U1,1,100,100,1000,0,1,0,0,0,1,2023-01-01 00:00:01\n",
+            encoding="utf-8",
+        )
+        result = evaluate_kuaisar(root.parent, KuaiSarConfig(partition="dev", train_fraction=0.5))
+        self.assertEqual(result["ranked_sessions"], 1)
+        self.assertEqual(result["temporal_partition"]["cutoff_timestamp_ms"], 4000)
+        self.assertEqual(result["metrics"]["wear_pkg"]["episodes"], 1)
+        sweep = evaluate_kuaisar_sweep(
+            root.parent,
+            {
+                "low_alpha": KuaiSarConfig(partition="train", train_fraction=0.5),
+                "high_alpha": KuaiSarConfig(alpha=0.8, partition="train", train_fraction=0.5),
+            },
+        )
+        self.assertEqual(set(sweep["variants"]), {"low_alpha", "high_alpha"})
 
 
 if __name__ == "__main__":
