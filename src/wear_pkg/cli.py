@@ -6,6 +6,7 @@ import sqlite3
 from pathlib import Path
 
 from .kuaisar import KuaiSarConfig, KuaiSarWeights, evaluate_kuaisar, evaluate_kuaisar_sweep
+from .lifecycle import run_lifecycle_validation
 from .mind import MindRunConfig, evaluate_mind, evaluate_mind_sweep
 from .salience import SalienceWeights
 
@@ -134,6 +135,15 @@ def _kuaisar_sweep(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def _lifecycle_run(arguments: argparse.Namespace) -> int:
+    result = run_lifecycle_validation()
+    arguments.output.parent.mkdir(parents=True, exist_ok=True)
+    arguments.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"Wrote {arguments.output}")
+    print(json.dumps({"passed": result["passed"], "scenarios": len(result["scenarios"])}, indent=2, sort_keys=True))
+    return 0 if result["passed"] else 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="wear-pkg")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -174,6 +184,9 @@ def main() -> int:
     kuaisar_sweep.add_argument("--config", type=Path, required=True)
     kuaisar_sweep.add_argument("--output", type=Path, required=True)
     kuaisar_sweep.set_defaults(func=_kuaisar_sweep)
+    lifecycle = subparsers.add_parser("lifecycle-run", help="Run deterministic lifecycle-state validation")
+    lifecycle.add_argument("--output", type=Path, required=True)
+    lifecycle.set_defaults(func=_lifecycle_run)
     arguments = parser.parse_args()
     return arguments.func(arguments)
 

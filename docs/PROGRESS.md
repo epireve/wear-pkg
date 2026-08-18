@@ -17,12 +17,12 @@ and blockers. Update it in the same commit that changes a stage's state.
 
 | ID | Stage | State | Evidence / transition requirement |
 |---|---|---|---|
-| S0 | Shared replay core | `COMPLETE` | Chronological replay, profile/query/context intent types, local SQLite ordering, and four automated checks are committed. |
+| S0 | Shared replay core | `COMPLETE` | Chronological replay, profile/query/context intent types, local SQLite ordering, and eight automated checks are committed. |
 | S1 | MINDsmall train-only tuning | `COMPLETE` | Six variants were evaluated on train only; `a065_frequency_h72` was selected by nDCG@10. |
 | S2 | MINDsmall frozen validation | `COMPLETE` | The frozen full score exceeds frequency on held-out dev nDCG@10 and MRR. |
 | S3 | MINDlarge scale confirmation | `COMPLETE` | The S1-frozen configuration was run unchanged on labeled dev and exceeds frequency on MRR, nDCG@5, and nDCG@10. |
 | S4 | KuaiSAR query-aware replay | `COMPLETE` | The train-selected query-aware score was frozen and exceeds frequency, action, lexical relevance, and salience on the later time segment. |
-| S5 | Controlled lifecycle validation | `PENDING` | Define deterministic pin, archive, restore, correction, and graph-disconnection scenarios. |
+| S5 | Controlled lifecycle validation | `COMPLETE` | Deterministic pin, archive, restore, correction, and graph-disconnection transitions all pass their asserted ranking invariants. |
 
 ## Evidence recorded so far
 
@@ -120,7 +120,22 @@ the train and test splits did not influence configuration selection. The
 improvement over frequency is smaller than on MINDsmall but remains positive
 on every recorded ranking metric.
 
+### S5 — complete
+
+- Suite: `results/lifecycle-validation.json` (local, not committed).
+- Command: `wear-pkg lifecycle-run --output results/lifecycle-validation.json`.
+- Result: 4 of 4 deterministic state-transition scenarios passed.
+- Pin/unpin: a pinned item overrides ordinary score order, and unpinning
+  restores the original order.
+- Archive/restore: an archived item is removed from the candidate set; a
+  restored item becomes eligible again at its ordinary score.
+- Correction redirect: an outdated item resolves to its correction and never
+  surfaces separately.
+- Graph disconnection: removing the only graph edge reduces its graph feature
+  to zero and removes its ranking advantage.
+
 ## Next update
 
-S5 needs deterministic lifecycle scenarios for pinning, archiving, restoration,
-correction, and graph disconnection.
+All currently planned stages are complete. The next extension is optional:
+validate the same constructs against RLKWiC's user-defined contexts and
+personal knowledge graph.

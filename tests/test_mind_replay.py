@@ -7,6 +7,7 @@ from pathlib import Path
 
 from wear_pkg.intent import ProfileIntent, QueryIntent
 from wear_pkg.kuaisar import KuaiSarConfig, evaluate_kuaisar, evaluate_kuaisar_sweep
+from wear_pkg.lifecycle import run_lifecycle_validation
 from wear_pkg.mind import MindRunConfig, evaluate_mind, evaluate_mind_sweep
 from wear_pkg.salience import SalienceWeights
 from wear_pkg.relevance import LexicalRelevance
@@ -132,6 +133,14 @@ class MindReplayTest(unittest.TestCase):
             },
         )
         self.assertEqual(set(sweep["variants"]), {"low_alpha", "high_alpha"})
+
+    def test_controlled_lifecycle_transitions_hold(self) -> None:
+        result = run_lifecycle_validation()
+        self.assertTrue(result["passed"])
+        self.assertEqual(
+            {scenario["id"] for scenario in result["scenarios"]},
+            {"pin_unpin", "archive_restore", "correction_redirect", "graph_disconnection"},
+        )
 
 
 if __name__ == "__main__":

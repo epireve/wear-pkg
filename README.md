@@ -117,6 +117,21 @@ earlier than each scored session.
 The initial run is intentionally bounded. Remove `--max-sessions` only after
 the derived SQLite index and smoke result have been verified.
 
+## Controlled lifecycle validation
+
+The deterministic lifecycle suite exercises state transitions that neither
+logged corpus represents directly. It verifies that pinning overrides ordinary
+ordering, archiving removes an item from the candidate set, restoration makes
+it eligible again, corrections resolve to the replacement item, and a removed
+graph edge provides no graph contribution.
+
+```bash
+.venv/bin/wear-pkg lifecycle-run \
+  --output results/lifecycle-validation.json
+```
+
+The output is an inspectable record of each transition and its assertion.
+
 ## Dataset-agnostic intent contract
 
 ```text
