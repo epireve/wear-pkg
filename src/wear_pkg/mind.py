@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Iterator, Mapping
 
 from .intent import ProfileIntent
-from .metrics import MetricAccumulator
+from .metrics import MetricAccumulator, PairedClusterAccumulator
 from .models import Candidate, InteractionEvent, RetrievalEpisode
 from .relevance import LexicalRelevance
 from .salience import SalienceWeights, combine, normalize_within_episode, raw_features
@@ -33,6 +33,8 @@ class MindRunConfig:
     min_observed_history: int = 1
     salience_weights: SalienceWeights = SalienceWeights()
     use_provided_history: bool = False
+    bootstrap_samples: int = 0
+    bootstrap_seed: int = 20260818
 
 
 def _entities(value: str) -> tuple[str, ...]:
@@ -155,6 +157,7 @@ def evaluate_mind(dataset_dir: Path, config: MindRunConfig = MindRunConfig()) ->
     cached_profile_vector: dict[str, float] | None = None
     skipped_unknown_items = 0
     eligible_episodes = 0
+    paired = PairedClusterAccumulator() if config.bootstrap_samples else None
 
     for episode in iter_episodes(index_path):
         if episode.user_id != previous_user:
@@ -195,12 +198,20 @@ def evaluate_mind(dataset_dir: Path, config: MindRunConfig = MindRunConfig()) ->
                 feature = normalised[candidate.item_id]
                 salience = combine(feature, config.salience_weights)
                 scores.append((candidate, profile, feature, salience))
-            metrics["profile_relevance"].add(_rank([(candidate.label, profile, candidate.item_id) for candidate, profile, _, _ in scores]))
-            metrics["recency"].add(_rank([(candidate.label, feature.recency, candidate.item_id) for candidate, _, feature, _ in scores]))
-            metrics["frequency"].add(_rank([(candidate.label, feature.frequency, candidate.item_id) for candidate, _, feature, _ in scores]))
-            metrics["recency_frequency"].add(_rank([(candidate.label, (feature.recency + feature.frequency) / 2, candidate.item_id) for candidate, _, feature, _ in scores]))
-            metrics["salience"].add(_rank([(candidate.label, salience, candidate.item_id) for candidate, _, _, salience in scores]))
-            metrics["wear_pkg"].add(_rank([(candidate.label, config.alpha * profile + (1 - config.alpha) * salience, candidate.item_id) for candidate, profile, _, salience in scores]))
+            profile_rank = _rank([(candidate.label, profile, candidate.item_id) for candidate, profile, _, _ in scores])
+            recency_rank = _rank([(candidate.label, feature.recency, candidate.item_id) for candidate, _, feature, _ in scores])
+            frequency_rank = _rank([(candidate.label, feature.frequency, candidate.item_id) for candidate, _, feature, _ in scores])
+            recency_frequency_rank = _rank([(candidate.label, (feature.recency + feature.frequency) / 2, candidate.item_id) for candidate, _, feature, _ in scores])
+            salience_rank = _rank([(candidate.label, salience, candidate.item_id) for candidate, _, _, salience in scores])
+            wear_rank = _rank([(candidate.label, config.alpha * profile + (1 - config.alpha) * salience, candidate.item_id) for candidate, profile, _, salience in scores])
+            metrics["profile_relevance"].add(profile_rank)
+            metrics["recency"].add(recency_rank)
+            metrics["frequency"].add(frequency_rank)
+            metrics["recency_frequency"].add(recency_frequency_rank)
+            metrics["salience"].add(salience_rank)
+            metrics["wear_pkg"].add(wear_rank)
+            if paired:
+                paired.add(episode.user_id, wear_rank, frequency_rank)
             eligible_episodes += 1
 
         # Append only after all candidates have been ranked: no future leakage.
@@ -218,7 +229,7 @@ def evaluate_mind(dataset_dir: Path, config: MindRunConfig = MindRunConfig()) ->
                     )
                 )
 
-    return {
+    result = {
         "dataset": "MIND",
         "intent_mode": "profile_relevance_no_fabricated_query",
         "config": {
@@ -227,6 +238,8 @@ def evaluate_mind(dataset_dir: Path, config: MindRunConfig = MindRunConfig()) ->
             "min_observed_history": config.min_observed_history,
             "salience_weights": config.salience_weights.__dict__,
             "use_provided_history_for_non_temporal_signals": config.use_provided_history,
+            "bootstrap_samples": config.bootstrap_samples,
+            "bootstrap_seed": config.bootstrap_seed,
         },
         "episodes_with_observed_history": eligible_episodes,
         "unknown_candidate_items_skipped": skipped_unknown_items,
@@ -237,6 +250,13 @@ def evaluate_mind(dataset_dir: Path, config: MindRunConfig = MindRunConfig()) ->
             "This evaluates profile relevance plus graph-propagated salience, not query-conditioned retrieval.",
         ],
     }
+    if paired:
+        result["paired_comparison"] = {
+            "full_model": "wear_pkg",
+            "baseline": "frequency",
+            **paired.bootstrap(config.bootstrap_samples, config.bootstrap_seed),
+        }
+    return result
 
 
 def evaluate_mind_sweep(dataset_dir: Path, variants: Mapping[str, MindRunConfig]) -> dict:

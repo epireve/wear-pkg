@@ -150,6 +150,24 @@ Freeze the train-selected configuration before one later-segment replay. The
 entity labels are public DBpedia URIs, but their link to the personal KG is
 lexical; the result should be read as a construct check, not a scale estimate.
 
+## Uncertainty checks
+
+Use paired user-cluster bootstrap intervals only on a frozen held-out run. The
+full score is compared with the stage's pre-specified strongest baseline;
+resampling users rather than individual episodes preserves within-user
+dependence.
+
+```bash
+.venv/bin/wear-pkg mind-run \
+  --dataset-dir data/MINDlarge_dev \
+  --bootstrap-samples 1000 \
+  --bootstrap-seed 20260818 \
+  --output results/mindlarge-dev-bootstrap.json
+```
+
+The result records the point difference, 95% percentile interval, and the
+share of bootstrap draws above zero for MRR, nDCG@5, and nDCG@10.
+
 ## Dataset-agnostic intent contract
 
 ```text

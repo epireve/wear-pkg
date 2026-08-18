@@ -19,6 +19,8 @@ def _mind_run(arguments: argparse.Namespace) -> int:
         min_observed_history=arguments.min_observed_history,
         salience_weights=SalienceWeights(arguments.weight_recency, arguments.weight_frequency, arguments.weight_context, arguments.weight_graph),
         use_provided_history=arguments.use_provided_history,
+        bootstrap_samples=arguments.bootstrap_samples,
+        bootstrap_seed=arguments.bootstrap_seed,
     )
     try:
         result = evaluate_mind(arguments.dataset_dir, config)
@@ -75,6 +77,8 @@ def _kuaisar_run(arguments: argparse.Namespace) -> int:
         max_sessions=arguments.max_sessions,
         partition=arguments.partition,
         train_fraction=arguments.train_fraction,
+        bootstrap_samples=arguments.bootstrap_samples,
+        bootstrap_seed=arguments.bootstrap_seed,
         salience_weights=KuaiSarWeights(
             arguments.weight_recency,
             arguments.weight_frequency,
@@ -152,6 +156,8 @@ def _rlkwic_run(arguments: argparse.Namespace) -> int:
         min_history_events=arguments.min_history_events,
         partition=arguments.partition,
         train_fraction=arguments.train_fraction,
+        bootstrap_samples=arguments.bootstrap_samples,
+        bootstrap_seed=arguments.bootstrap_seed,
         salience_weights=SalienceWeights(
             arguments.weight_recency,
             arguments.weight_frequency,
@@ -223,6 +229,8 @@ def main() -> int:
     mind.add_argument("--weight-frequency", type=float, default=0.25)
     mind.add_argument("--weight-context", type=float, default=0.25)
     mind.add_argument("--weight-graph", type=float, default=0.25)
+    mind.add_argument("--bootstrap-samples", type=int, default=0)
+    mind.add_argument("--bootstrap-seed", type=int, default=20260818)
     mind.set_defaults(func=_mind_run)
     sweep = subparsers.add_parser("mind-sweep", help="Select a MIND configuration from a train-only JSON grid")
     sweep.add_argument("--dataset-dir", type=Path, required=True, help="Directory containing news.tsv and behaviors.tsv")
@@ -243,6 +251,8 @@ def main() -> int:
     kuaisar.add_argument("--weight-action", type=float, default=0.30)
     kuaisar.add_argument("--weight-context", type=float, default=0.10)
     kuaisar.add_argument("--weight-graph", type=float, default=0.15)
+    kuaisar.add_argument("--bootstrap-samples", type=int, default=0)
+    kuaisar.add_argument("--bootstrap-seed", type=int, default=20260818)
     kuaisar.set_defaults(func=_kuaisar_run)
     kuaisar_sweep = subparsers.add_parser("kuaisar-sweep", help="Select a KuaiSAR configuration from an earlier temporal partition")
     kuaisar_sweep.add_argument("--dataset-dir", type=Path, required=True)
@@ -264,6 +274,8 @@ def main() -> int:
     rlkwic.add_argument("--weight-frequency", type=float, default=0.25)
     rlkwic.add_argument("--weight-context", type=float, default=0.25)
     rlkwic.add_argument("--weight-graph", type=float, default=0.25)
+    rlkwic.add_argument("--bootstrap-samples", type=int, default=0)
+    rlkwic.add_argument("--bootstrap-seed", type=int, default=20260818)
     rlkwic.set_defaults(func=_rlkwic_run)
     rlkwic_sweep = subparsers.add_parser("rlkwic-sweep", help="Select an RLKWiC configuration from an earlier temporal partition")
     rlkwic_sweep.add_argument("--dataset-dir", type=Path, required=True)

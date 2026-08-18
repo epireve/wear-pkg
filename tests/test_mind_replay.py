@@ -8,7 +8,7 @@ from pathlib import Path
 from wear_pkg.intent import ProfileIntent, QueryIntent
 from wear_pkg.kuaisar import KuaiSarConfig, evaluate_kuaisar, evaluate_kuaisar_sweep
 from wear_pkg.lifecycle import run_lifecycle_validation
-from wear_pkg.metrics import ndcg
+from wear_pkg.metrics import PairedClusterAccumulator, ndcg
 from wear_pkg.mind import MindRunConfig, evaluate_mind, evaluate_mind_sweep
 from wear_pkg.rlkwic import RlkWicConfig, evaluate_rlkwic
 from wear_pkg.salience import SalienceWeights
@@ -147,6 +147,15 @@ class MindReplayTest(unittest.TestCase):
     def test_graded_ndcg_uses_graded_ideal_order(self) -> None:
         self.assertEqual(ndcg([2, 1], 2), 1.0)
 
+    def test_paired_cluster_bootstrap_is_deterministic(self) -> None:
+        paired = PairedClusterAccumulator()
+        paired.add("u1", [1, 0], [0, 1])
+        paired.add("u2", [1, 0], [0, 1])
+        first = paired.bootstrap(samples=20, seed=7)
+        second = paired.bootstrap(samples=20, seed=7)
+        self.assertEqual(first, second)
+        self.assertGreater(first["metrics"]["ndcg@10"]["difference"], 0.0)
+
     def test_rlkwic_context_replay_uses_only_earlier_kg_events(self) -> None:
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -179,10 +188,11 @@ class MindReplayTest(unittest.TestCase):
             encoding="utf-8",
         )
         train = evaluate_rlkwic(root, RlkWicConfig(partition="train", train_fraction=0.5))
-        dev = evaluate_rlkwic(root, RlkWicConfig(partition="dev", train_fraction=0.5))
+        dev = evaluate_rlkwic(root, RlkWicConfig(partition="dev", train_fraction=0.5, bootstrap_samples=5))
         self.assertEqual(train["eligible_candidate_slates"], 1)
         self.assertEqual(dev["eligible_candidate_slates"], 1)
         self.assertEqual(train["metrics"]["wear_pkg"]["episodes"], 1)
+        self.assertIn("paired_comparison", dev)
 
 
 if __name__ == "__main__":

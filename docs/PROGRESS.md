@@ -24,6 +24,7 @@ and blockers. Update it in the same commit that changes a stage's state.
 | S4 | KuaiSAR query-aware replay | `COMPLETE` | The train-selected query-aware score was frozen and exceeds frequency, action, lexical relevance, and salience on the later time segment. |
 | S5 | Controlled lifecycle validation | `COMPLETE` | Deterministic pin, archive, restore, correction, and graph-disconnection transitions all pass their asserted ranking invariants. |
 | S6 | RLKWiC context-and-graph validation | `COMPLETE` | The train-selected context-and-graph score is frozen and exceeds direct event matching on the later human-scored segment; the small participant count remains an explicit limitation. |
+| S7 | Paired uncertainty checks | `IN_PROGRESS` | Rerun every frozen held-out configuration with 1,000 deterministic user-cluster bootstrap resamples against its pre-specified baseline. |
 
 ## Evidence recorded so far
 
@@ -163,6 +164,16 @@ reverses the small train-segment deficit against direct event matching, but its
 55-slate / eight-participant scope means it is evidence of construct behavior,
 not a scale estimate. S6 is complete.
 
+### S7 — in progress
+
+- Method: 1,000 deterministic paired bootstrap resamples at the user cluster
+  level, seed `20260818`.
+- Comparisons: MINDlarge full score versus frequency; KuaiSAR full score versus
+  frequency; RLKWiC full score versus direct event matching.
+- Output fields: point difference, percentile 95% interval, and share of
+  resamples above zero for MRR, nDCG@5, and nDCG@10.
+- Pending evidence: frozen reruns for all three held-out configurations.
+
 ## Next update
 
-All currently planned stages are complete.
+S7 needs frozen reruns for all three held-out configurations.

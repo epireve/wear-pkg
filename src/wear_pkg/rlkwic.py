@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import bisect
 import csv
-import math
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -10,7 +9,7 @@ from pathlib import Path
 from typing import Iterable, Mapping
 from urllib.parse import urlparse
 
-from .metrics import MetricAccumulator
+from .metrics import MetricAccumulator, PairedClusterAccumulator
 from .models import InteractionEvent
 from .salience import SalienceWeights, combine, normalize_within_episode, raw_features
 from .text import tokenize
@@ -24,6 +23,8 @@ class RlkWicConfig:
     partition: str = "all"
     train_fraction: float = 0.8
     salience_weights: SalienceWeights = SalienceWeights()
+    bootstrap_samples: int = 0
+    bootstrap_seed: int = 20260818
 
 
 @dataclass(frozen=True)
@@ -150,6 +151,8 @@ def _config_dict(config: RlkWicConfig) -> dict:
         "partition": config.partition,
         "train_fraction": config.train_fraction,
         "salience_weights": config.salience_weights.__dict__,
+        "bootstrap_samples": config.bootstrap_samples,
+        "bootstrap_seed": config.bootstrap_seed,
     }
 
 
@@ -158,7 +161,7 @@ def _evaluate_variants(dataset_dir: Path, variants: Mapping[str, RlkWicConfig]) 
         raise ValueError("at least one RLKWiC variant is required")
     configs = list(variants.values())
     reference = configs[0]
-    shared = ("partition", "train_fraction", "min_history_events")
+    shared = ("partition", "train_fraction", "min_history_events", "bootstrap_samples", "bootstrap_seed")
     for config in configs[1:]:
         if any(getattr(config, name) != getattr(reference, name) for name in shared):
             raise ValueError("RLKWiC sweep variants must share partition, train_fraction, and min_history_events")
@@ -172,6 +175,7 @@ def _evaluate_variants(dataset_dir: Path, variants: Mapping[str, RlkWicConfig]) 
     details = _partition_details(episodes, reference)
     metric_names = ("event_lexical", "frequency", "graph", "salience", "wear_pkg")
     metrics = {variant_id: {name: MetricAccumulator() for name in metric_names} for variant_id in variants}
+    paired = {variant_id: PairedClusterAccumulator() for variant_id in variants} if reference.bootstrap_samples else {}
     eligible = 0
     for episode in episodes:
         if not _should_evaluate(episode.timestamp_ms, details):
@@ -203,11 +207,18 @@ def _evaluate_variants(dataset_dir: Path, variants: Mapping[str, RlkWicConfig]) 
                 feature = normalised[entity]
                 salience = combine(feature, config.salience_weights)
                 scores.append((entity, label, relevance[entity], feature, salience))
-            metrics[variant_id]["event_lexical"].add(_rank([(label, lexical, entity) for entity, label, lexical, _feature, _salience in scores]))
-            metrics[variant_id]["frequency"].add(_rank([(label, feature.frequency, entity) for entity, label, _lexical, feature, _salience in scores]))
-            metrics[variant_id]["graph"].add(_rank([(label, feature.graph, entity) for entity, label, _lexical, feature, _salience in scores]))
-            metrics[variant_id]["salience"].add(_rank([(label, salience, entity) for entity, label, _lexical, _feature, salience in scores]))
-            metrics[variant_id]["wear_pkg"].add(_rank([(label, config.alpha * lexical + (1 - config.alpha) * salience, entity) for entity, label, lexical, _feature, salience in scores]))
+            lexical_rank = _rank([(label, lexical, entity) for entity, label, lexical, _feature, _salience in scores])
+            frequency_rank = _rank([(label, feature.frequency, entity) for entity, label, _lexical, feature, _salience in scores])
+            graph_rank = _rank([(label, feature.graph, entity) for entity, label, _lexical, feature, _salience in scores])
+            salience_rank = _rank([(label, salience, entity) for entity, label, _lexical, _feature, salience in scores])
+            wear_rank = _rank([(label, config.alpha * lexical + (1 - config.alpha) * salience, entity) for entity, label, lexical, _feature, salience in scores])
+            metrics[variant_id]["event_lexical"].add(lexical_rank)
+            metrics[variant_id]["frequency"].add(frequency_rank)
+            metrics[variant_id]["graph"].add(graph_rank)
+            metrics[variant_id]["salience"].add(salience_rank)
+            metrics[variant_id]["wear_pkg"].add(wear_rank)
+            if paired:
+                paired[variant_id].add(episode.participant_id, wear_rank, lexical_rank)
         eligible += 1
     return {
         "dataset": "RLKWiC",
@@ -218,6 +229,17 @@ def _evaluate_variants(dataset_dir: Path, variants: Mapping[str, RlkWicConfig]) 
             variant_id: {
                 "config": _config_dict(config),
                 "metrics": {name: accumulator.as_dict() for name, accumulator in metrics[variant_id].items()},
+                **(
+                    {
+                        "paired_comparison": {
+                            "full_model": "wear_pkg",
+                            "baseline": "event_lexical",
+                            **paired[variant_id].bootstrap(config.bootstrap_samples, config.bootstrap_seed),
+                        }
+                    }
+                    if paired
+                    else {}
+                ),
             }
             for variant_id, config in variants.items()
         },
@@ -234,6 +256,8 @@ def evaluate_rlkwic(dataset_dir: Path, config: RlkWicConfig = RlkWicConfig()) ->
     single = result.pop("variants")["single"]
     result["config"] = single["config"]
     result["metrics"] = single["metrics"]
+    if "paired_comparison" in single:
+        result["paired_comparison"] = single["paired_comparison"]
     return result
 
 

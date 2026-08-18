@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Mapping
 
-from .metrics import MetricAccumulator
+from .metrics import MetricAccumulator, PairedClusterAccumulator
 
 
 @dataclass(frozen=True)
@@ -34,6 +34,8 @@ class KuaiSarConfig:
     partition: str = "all"
     train_fraction: float = 0.8
     salience_weights: KuaiSarWeights = DEFAULT_KUAISAR_WEIGHTS
+    bootstrap_samples: int = 0
+    bootstrap_seed: int = 20260818
 
 
 @dataclass(frozen=True)
@@ -186,6 +188,8 @@ def _config_dict(config: KuaiSarConfig) -> dict:
         "partition": config.partition,
         "train_fraction": config.train_fraction,
         "salience_weights": config.salience_weights.__dict__,
+        "bootstrap_samples": config.bootstrap_samples,
+        "bootstrap_seed": config.bootstrap_seed,
     }
 
 
@@ -227,7 +231,7 @@ def _evaluate_kuaisar_variants(dataset_dir: Path, variants: Mapping[str, KuaiSar
         raise ValueError("at least one KuaiSAR variant is required")
     configurations = list(variants.values())
     reference = configurations[0]
-    shared = ("partition", "train_fraction", "min_history_events", "max_sessions")
+    shared = ("partition", "train_fraction", "min_history_events", "max_sessions", "bootstrap_samples", "bootstrap_seed")
     for config in configurations[1:]:
         if any(getattr(config, name) != getattr(reference, name) for name in shared):
             raise ValueError("KuaiSAR sweep variants must share partition, train_fraction, min_history_events, and max_sessions")
@@ -249,6 +253,7 @@ def _evaluate_kuaisar_variants(dataset_dir: Path, variants: Mapping[str, KuaiSar
     partition_details = _partition_details(connection, reference)
     metric_names = ("query_lexical", "frequency", "action", "salience", "wear_pkg")
     metrics = {variant_id: {name: MetricAccumulator() for name in metric_names} for variant_id in variants}
+    paired = {variant_id: PairedClusterAccumulator() for variant_id in variants} if reference.bootstrap_samples else {}
     sessions = connection.execute("SELECT session_key, user_id, time_ms, keyword, source FROM search_sessions ORDER BY user_id, time_ms, session_key")
     prior_user: str | None = None
     prior_time = -1
@@ -320,11 +325,18 @@ def _evaluate_kuaisar_variants(dataset_dir: Path, variants: Mapping[str, KuaiSar
                         )
                         for item_id, click, relevance, features in normalised
                     ]
-                    metrics[variant_id]["query_lexical"].add(_rank([(click, relevance, item_id) for item_id, click, relevance, _, _ in final]))
-                    metrics[variant_id]["frequency"].add(_rank([(click, features[1], item_id) for item_id, click, _, features, _ in final]))
-                    metrics[variant_id]["action"].add(_rank([(click, features[2], item_id) for item_id, click, _, features, _ in final]))
-                    metrics[variant_id]["salience"].add(_rank([(click, salience, item_id) for item_id, click, _, _, salience in final]))
-                    metrics[variant_id]["wear_pkg"].add(_rank([(click, config.alpha * relevance + (1 - config.alpha) * salience, item_id) for item_id, click, relevance, _, salience in final]))
+                    lexical_rank = _rank([(click, relevance, item_id) for item_id, click, relevance, _, _ in final])
+                    frequency_rank = _rank([(click, features[1], item_id) for item_id, click, _, features, _ in final])
+                    action_rank = _rank([(click, features[2], item_id) for item_id, click, _, features, _ in final])
+                    salience_rank = _rank([(click, salience, item_id) for item_id, click, _, _, salience in final])
+                    wear_rank = _rank([(click, config.alpha * relevance + (1 - config.alpha) * salience, item_id) for item_id, click, relevance, _, salience in final])
+                    metrics[variant_id]["query_lexical"].add(lexical_rank)
+                    metrics[variant_id]["frequency"].add(frequency_rank)
+                    metrics[variant_id]["action"].add(action_rank)
+                    metrics[variant_id]["salience"].add(salience_rank)
+                    metrics[variant_id]["wear_pkg"].add(wear_rank)
+                    if paired:
+                        paired[variant_id].add(user_id, wear_rank, frequency_rank)
                 ranked_sessions += 1
                 if reference.max_sessions and ranked_sessions >= reference.max_sessions:
                     break
@@ -342,6 +354,17 @@ def _evaluate_kuaisar_variants(dataset_dir: Path, variants: Mapping[str, KuaiSar
             variant_id: {
                 "config": _config_dict(config),
                 "metrics": {name: accumulator.as_dict() for name, accumulator in metrics[variant_id].items()},
+                **(
+                    {
+                        "paired_comparison": {
+                            "full_model": "wear_pkg",
+                            "baseline": "frequency",
+                            **paired[variant_id].bootstrap(config.bootstrap_samples, config.bootstrap_seed),
+                        }
+                    }
+                    if paired
+                    else {}
+                ),
             }
             for variant_id, config in variants.items()
         },
@@ -358,6 +381,8 @@ def evaluate_kuaisar(dataset_dir: Path, config: KuaiSarConfig = KuaiSarConfig())
     single = result.pop("variants")["single"]
     result["config"] = single["config"]
     result["metrics"] = single["metrics"]
+    if "paired_comparison" in single:
+        result["paired_comparison"] = single["paired_comparison"]
     return result
 
 
