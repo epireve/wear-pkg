@@ -25,8 +25,8 @@ and blockers. Update it in the same commit that changes a stage's state.
 | S5 | Controlled lifecycle validation | `COMPLETE` | Deterministic pin, archive, restore, correction, and graph-disconnection transitions all pass their asserted ranking invariants. |
 | S6 | RLKWiC context-and-graph validation | `COMPLETE` | The train-selected context-and-graph score is frozen and exceeds direct event matching on the later human-scored segment; the small participant count remains an explicit limitation. |
 | S7 | Paired uncertainty checks | `COMPLETE` | MINDlarge and corrected KuaiSAR have entirely positive user-cluster nDCG@10 intervals; RLKWiC is inconclusive at its small participant count. |
-| S8 | Frozen signal-ablation diagnostics | `IN_PROGRESS` | Fixed full-versus-signal-removal configurations and paired user-cluster comparisons must be run without re-selection. |
-| S9 | Controlled StableLow archive policy | `PENDING` | A recommendation policy, reason codes, safeguards, and deterministic end-to-end scenarios must be implemented and verified. |
+| S8 | Frozen signal-ablation diagnostics | `COMPLETE` | Fixed full-versus-signal-removal comparisons are complete with 1,000 paired user-cluster resamples; no configuration was selected. |
+| S9 | Controlled StableLow archive policy | `COMPLETE` | The policy, reason codes, safety gates, and eight deterministic end-to-end scenarios are implemented and verified. |
 
 ## Evidence recorded so far
 
@@ -83,7 +83,7 @@ The held-out result preserves the train-selected improvement over frequency.
 It completes the MINDsmall stage. The configuration is frozen for S3; changing
 it would require a new, separately documented selection stage.
 
-### S4 — in progress
+### S4 — complete
 
 - Downloaded release: KuaiSAR-small (`KuaiSAR.zip`)
 - Archive SHA-256: `ed8afa12196cbf18a719511a03b0915522c4039a6c08ce306df69aaeddb9fa1c`
@@ -138,7 +138,7 @@ on every recorded ranking metric.
 - Graph disconnection: removing the only graph edge reduces its graph feature
   to zero and removes its ranking advantage.
 
-### S6 — in progress
+### S6 — complete
 
 - Downloaded source archive: `RLKWiC.zip` (local, ignored); SHA-256 `e7594a1a054425e10a08ba98ce2be7088d1cfda82eb25d0f6fa5b88f513bf1dd`.
 - Downloaded human-score files: `Recommendations.csv` SHA-256 `f4f7efae7c6b2d43d93266b08e1ae589ff2fb8c0a191f49823a4c7b12e962380`; `Scores.csv` SHA-256 `717dfb030acee9f034a2ca3b9a92c5c40fefebe8f1401d75ab89b22ad2552b54`.
@@ -187,7 +187,7 @@ point estimate remains positive but is inconclusive at its available scale.
 
 ## Next update
 
-### S8 — in progress
+### S8 — complete
 
 - Purpose: identify the contribution of each signal family without changing
   any selected value or treating the held-out partition as a new tuning set.
@@ -203,8 +203,24 @@ point estimate remains positive but is inconclusive at its available scale.
 - Inference: 1,000 paired user-cluster bootstrap samples, seed `20260818`,
   compare the unchanged full configuration with each removal. These are
   diagnostic follow-on analyses, not additional configuration selection.
+- MINDlarge output: `results/mindlarge-dev-ablations.json` (local, not
+  committed). Full nDCG@10 0.3903. Removing frequency reduced nDCG@10 by
+  0.0153 (95% interval [+0.0148, +0.0159]); removing context reduced it by
+  0.0020 ([+0.0018, +0.0022]). Graph removal was inconclusive (+0.0002,
+  [-0.0001, +0.0004]), while removing recency improved nDCG@10 by 0.0006
+  (full-minus-ablation interval [-0.0008, -0.0005]).
+- KuaiSAR output: `results/kuaisar-small-dev-ablations.json` (local, not
+  committed). Full nDCG@10 0.4966. Removing graph reduced it by 0.0050
+  ([+0.0042, +0.0058]) and removing recency reduced it by 0.0023
+  ([+0.0017, +0.0030]). Removing action, frequency, or context instead
+  improved the fixed score; these components are not supported at equal
+  weighting on this later segment.
+- The initial MINDlarge output was produced before generic sweep reporting was
+  corrected to label comparison files as diagnostics. Commit `182c781`
+  supersedes that presentation label: no configuration was selected, and no
+  fixed value changed.
 
-### S9 — in progress
+### S9 — complete
 
 - Policy implementation: `ArchivePolicy` in `src/wear_pkg/lifecycle.py`.
 - Fixed rule: recommend an item only when its bounded interaction-based
@@ -220,3 +236,7 @@ point estimate remains positive but is inconclusive at its available scale.
   low salience; explicit archive then restore.
 - Initial local validation: 8 of 8 deterministic scenarios pass in
   `results/lifecycle-stablelow-validation.json` (local, not committed).
+
+All technical evaluation stages currently planned are complete. A structured
+human review or an explicit scope statement remains a separate approval and
+writing decision; it has not been represented as completed evidence.
