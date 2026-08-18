@@ -21,7 +21,7 @@ and blockers. Update it in the same commit that changes a stage's state.
 | S1 | MINDsmall train-only tuning | `COMPLETE` | Six variants were evaluated on train only; `a065_frequency_h72` was selected by nDCG@10. |
 | S2 | MINDsmall frozen validation | `COMPLETE` | The frozen full score exceeds frequency on held-out dev nDCG@10 and MRR. |
 | S3 | MINDlarge scale confirmation | `COMPLETE` | The S1-frozen configuration was run unchanged on labeled dev and exceeds frequency on MRR, nDCG@5, and nDCG@10. |
-| S4 | KuaiSAR query-aware replay | `IN_PROGRESS` | Begin with the direct-download small release; add actual query-to-caption relevance, multi-action history, and exposed-slate ranking. |
+| S4 | KuaiSAR query-aware replay | `COMPLETE` | The train-selected query-aware score was frozen and exceeds frequency, action, lexical relevance, and salience on the later time segment. |
 | S5 | Controlled lifecycle validation | `PENDING` | Define deterministic pin, archive, restore, correction, and graph-disconnection scenarios. |
 
 ## Evidence recorded so far
@@ -93,7 +93,16 @@ it would require a new, separately documented selection stage.
 - Train-only selection: `results/kuaisar-small-train-sweep.json` (local, not committed); 267,608 sessions, 80/20 timestamp split, nDCG@10 selection metric.
 - Selected variant: `a050_balanced_h24`; full score nDCG@10 0.5328, compared with frequency 0.5288 and action 0.5289.
 - Frozen configuration: `configs/kuaisar-frozen.json`; it must be run unchanged on the later time segment.
-- Pending evidence: one frozen held-out replay.
+- Frozen held-out run: `results/kuaisar-small-dev-frozen.json` (local, not committed); 33,433 sessions with a positive label evaluated.
+- Full score: MRR 0.4369, nDCG@5 0.4640, nDCG@10 0.5406.
+- Frequency baseline: MRR 0.4292, nDCG@5 0.4562, nDCG@10 0.5335.
+- Action baseline: MRR 0.4291, nDCG@5 0.4561, nDCG@10 0.5333.
+- Lexical query baseline: MRR 0.4189, nDCG@5 0.4446, nDCG@10 0.5233.
+- Difference versus frequency: +0.0077 MRR, +0.0078 nDCG@5, +0.0071 nDCG@10.
+
+The later-segment result uses the train-selected configuration unchanged and
+exceeds all recorded single-component and salience-only baselines. S4 is
+complete.
 
 ### S3 — complete
 
@@ -113,5 +122,5 @@ on every recorded ranking metric.
 
 ## Next update
 
-S4 needs temporal train/dev splitting, train-only configuration selection, and
-one frozen held-out query-aware replay.
+S5 needs deterministic lifecycle scenarios for pinning, archiving, restoration,
+correction, and graph disconnection.
