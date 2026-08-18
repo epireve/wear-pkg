@@ -1,0 +1,38 @@
+{
+  "selection_metric": "ndcg@10",
+  "partition": "train",
+  "train_fraction": 0.8,
+  "min_history_events": 1,
+  "variants": [
+    {
+      "id": "a050_equal_h24",
+      "alpha": 0.5,
+      "half_life_hours": 24,
+      "weights": {"recency": 0.25, "frequency": 0.25, "context": 0.25, "graph": 0.25}
+    },
+    {
+      "id": "a080_equal_h24",
+      "alpha": 0.8,
+      "half_life_hours": 24,
+      "weights": {"recency": 0.25, "frequency": 0.25, "context": 0.25, "graph": 0.25}
+    },
+    {
+      "id": "a095_equal_h24",
+      "alpha": 0.95,
+      "half_life_hours": 24,
+      "weights": {"recency": 0.25, "frequency": 0.25, "context": 0.25, "graph": 0.25}
+    },
+    {
+      "id": "a080_graph_h72",
+      "alpha": 0.8,
+      "half_life_hours": 72,
+      "weights": {"recency": 0.1, "frequency": 0.2, "context": 0.2, "graph": 0.5}
+    },
+    {
+      "id": "a095_graph_h72",
+      "alpha": 0.95,
+      "half_life_hours": 72,
+      "weights": {"recency": 0.1, "frequency": 0.2, "context": 0.2, "graph": 0.5}
+    }
+  ]
+}

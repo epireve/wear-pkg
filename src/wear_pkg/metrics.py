@@ -47,5 +47,5 @@ def recall(labels: Sequence[int], k: int) -> float:
 
 def ndcg(labels: Sequence[int], k: int) -> float:
     observed = sum(value / math.log2(index + 2) for index, value in enumerate(labels[:k]))
-    ideal = sum(1.0 / math.log2(index + 2) for index in range(min(sum(value > 0 for value in labels), k)))
+    ideal = sum(value / math.log2(index + 2) for index, value in enumerate(sorted(labels, reverse=True)[:k]))
     return observed / ideal if ideal else 0.0

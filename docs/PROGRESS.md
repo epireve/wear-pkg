@@ -23,6 +23,7 @@ and blockers. Update it in the same commit that changes a stage's state.
 | S3 | MINDlarge scale confirmation | `COMPLETE` | The S1-frozen configuration was run unchanged on labeled dev and exceeds frequency on MRR, nDCG@5, and nDCG@10. |
 | S4 | KuaiSAR query-aware replay | `COMPLETE` | The train-selected query-aware score was frozen and exceeds frequency, action, lexical relevance, and salience on the later time segment. |
 | S5 | Controlled lifecycle validation | `COMPLETE` | Deterministic pin, archive, restore, correction, and graph-disconnection transitions all pass their asserted ranking invariants. |
+| S6 | RLKWiC context-and-graph validation | `IN_PROGRESS` | Use timestamped KG events to rank human-scored multi-candidate entity slates; choose only from the earlier time segment. |
 
 ## Evidence recorded so far
 
@@ -134,8 +135,17 @@ on every recorded ranking metric.
 - Graph disconnection: removing the only graph edge reduces its graph feature
   to zero and removes its ranking advantage.
 
+### S6 — in progress
+
+- Downloaded source archive: `RLKWiC.zip` (local, ignored); SHA-256 `e7594a1a054425e10a08ba98ce2be7088d1cfda82eb25d0f6fa5b88f513bf1dd`.
+- Downloaded human-score files: `Recommendations.csv` SHA-256 `f4f7efae7c6b2d43d93266b08e1ae589ff2fb8c0a191f49823a4c7b12e962380`; `Scores.csv` SHA-256 `717dfb030acee9f034a2ca3b9a92c5c40fefebe8f1401d75ab89b22ad2552b54`.
+- Extracted only participant contexts, events, KG resources/triples, sessions,
+  and term tables needed for replay.
+- Replay unit: timestamped recommendation slates with at least two candidates
+  and at least one human-positive score; 278 such slates are available.
+- Pending evidence: train-only configuration selection and one frozen
+  later-segment replay.
+
 ## Next update
 
-All currently planned stages are complete. The next extension is optional:
-validate the same constructs against RLKWiC's user-defined contexts and
-personal knowledge graph.
+S6 needs train-only configuration selection and one frozen later-segment replay.

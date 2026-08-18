@@ -8,6 +8,7 @@ from pathlib import Path
 from .kuaisar import KuaiSarConfig, KuaiSarWeights, evaluate_kuaisar, evaluate_kuaisar_sweep
 from .lifecycle import run_lifecycle_validation
 from .mind import MindRunConfig, evaluate_mind, evaluate_mind_sweep
+from .rlkwic import RlkWicConfig, evaluate_rlkwic, evaluate_rlkwic_sweep
 from .salience import SalienceWeights
 
 
@@ -144,6 +145,70 @@ def _lifecycle_run(arguments: argparse.Namespace) -> int:
     return 0 if result["passed"] else 1
 
 
+def _rlkwic_run(arguments: argparse.Namespace) -> int:
+    config = RlkWicConfig(
+        alpha=arguments.alpha,
+        half_life_hours=arguments.half_life_hours,
+        min_history_events=arguments.min_history_events,
+        partition=arguments.partition,
+        train_fraction=arguments.train_fraction,
+        salience_weights=SalienceWeights(
+            arguments.weight_recency,
+            arguments.weight_frequency,
+            arguments.weight_context,
+            arguments.weight_graph,
+        ),
+    )
+    try:
+        result = evaluate_rlkwic(arguments.dataset_dir, config)
+    except (FileNotFoundError, ValueError) as error:
+        raise SystemExit(f"error: {error}") from error
+    arguments.output.parent.mkdir(parents=True, exist_ok=True)
+    arguments.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"Wrote {arguments.output}")
+    print(json.dumps(result["metrics"], indent=2, sort_keys=True))
+    return 0
+
+
+def _rlkwic_sweep(arguments: argparse.Namespace) -> int:
+    source = json.loads(arguments.config.read_text(encoding="utf-8"))
+    try:
+        partition = str(source["partition"])
+        train_fraction = float(source["train_fraction"])
+        min_history_events = int(source.get("min_history_events", 1))
+        variants = {
+            item["id"]: RlkWicConfig(
+                alpha=float(item["alpha"]),
+                half_life_hours=float(item["half_life_hours"]),
+                min_history_events=min_history_events,
+                partition=partition,
+                train_fraction=train_fraction,
+                salience_weights=SalienceWeights(
+                    float(item["weights"]["recency"]),
+                    float(item["weights"]["frequency"]),
+                    float(item["weights"]["context"]),
+                    float(item["weights"]["graph"]),
+                ),
+            )
+            for item in source["variants"]
+        }
+        if len(variants) != len(source["variants"]):
+            raise ValueError("Every sweep variant id must be unique")
+        result = evaluate_rlkwic_sweep(arguments.dataset_dir, variants)
+    except (FileNotFoundError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+        raise SystemExit(f"error: {error}") from error
+    metric = source.get("selection_metric", "ndcg@10")
+    if metric not in {"mrr", "ndcg@5", "ndcg@10", "recall@5", "recall@10"}:
+        raise SystemExit(f"error: unsupported selection metric: {metric}")
+    selected_id, selected = max(result["variants"].items(), key=lambda pair: (pair[1]["metrics"]["wear_pkg"][metric], pair[0]))
+    result["selection"] = {"metric": metric, "variant_id": selected_id, "metric_value": selected["metrics"]["wear_pkg"][metric]}
+    arguments.output.parent.mkdir(parents=True, exist_ok=True)
+    arguments.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"Wrote {arguments.output}")
+    print(json.dumps(result["selection"], indent=2, sort_keys=True))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="wear-pkg")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -187,6 +252,24 @@ def main() -> int:
     lifecycle = subparsers.add_parser("lifecycle-run", help="Run deterministic lifecycle-state validation")
     lifecycle.add_argument("--output", type=Path, required=True)
     lifecycle.set_defaults(func=_lifecycle_run)
+    rlkwic = subparsers.add_parser("rlkwic-run", help="Run RLKWiC context-and-graph candidate ranking")
+    rlkwic.add_argument("--dataset-dir", type=Path, required=True)
+    rlkwic.add_argument("--output", type=Path, required=True)
+    rlkwic.add_argument("--alpha", type=float, default=0.5)
+    rlkwic.add_argument("--half-life-hours", type=float, default=24.0)
+    rlkwic.add_argument("--min-history-events", type=int, default=1)
+    rlkwic.add_argument("--partition", choices=("all", "train", "dev"), default="all")
+    rlkwic.add_argument("--train-fraction", type=float, default=0.8)
+    rlkwic.add_argument("--weight-recency", type=float, default=0.25)
+    rlkwic.add_argument("--weight-frequency", type=float, default=0.25)
+    rlkwic.add_argument("--weight-context", type=float, default=0.25)
+    rlkwic.add_argument("--weight-graph", type=float, default=0.25)
+    rlkwic.set_defaults(func=_rlkwic_run)
+    rlkwic_sweep = subparsers.add_parser("rlkwic-sweep", help="Select an RLKWiC configuration from an earlier temporal partition")
+    rlkwic_sweep.add_argument("--dataset-dir", type=Path, required=True)
+    rlkwic_sweep.add_argument("--config", type=Path, required=True)
+    rlkwic_sweep.add_argument("--output", type=Path, required=True)
+    rlkwic_sweep.set_defaults(func=_rlkwic_sweep)
     arguments = parser.parse_args()
     return arguments.func(arguments)
 

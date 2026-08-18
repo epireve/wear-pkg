@@ -8,7 +8,9 @@ from pathlib import Path
 from wear_pkg.intent import ProfileIntent, QueryIntent
 from wear_pkg.kuaisar import KuaiSarConfig, evaluate_kuaisar, evaluate_kuaisar_sweep
 from wear_pkg.lifecycle import run_lifecycle_validation
+from wear_pkg.metrics import ndcg
 from wear_pkg.mind import MindRunConfig, evaluate_mind, evaluate_mind_sweep
+from wear_pkg.rlkwic import RlkWicConfig, evaluate_rlkwic
 from wear_pkg.salience import SalienceWeights
 from wear_pkg.relevance import LexicalRelevance
 
@@ -141,6 +143,46 @@ class MindReplayTest(unittest.TestCase):
             {scenario["id"] for scenario in result["scenarios"]},
             {"pin_unpin", "archive_restore", "correction_redirect", "graph_disconnection"},
         )
+
+    def test_graded_ndcg_uses_graded_ideal_order(self) -> None:
+        self.assertEqual(ndcg([2, 1], 2), 1.0)
+
+    def test_rlkwic_context_replay_uses_only_earlier_kg_events(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
+        participant = root / "RLKWiC" / "p1"
+        participant.mkdir(parents=True)
+        (participant / "contexts.csv").write_text(
+            "id,label\n1,project\n",
+            encoding="utf-8",
+        )
+        (participant / "kg_resources.csv").write_text(
+            "id,uri,created,label,type_id\n1,pimo:project,0,project,1\n2,pimo:about,0,is about,1\n3,pimo:firebase,0,Firebase,1\n",
+            encoding="utf-8",
+        )
+        (participant / "kg_spo.csv").write_text(
+            "id,s,p,o,created\n10,1,2,3,0\n",
+            encoding="utf-8",
+        )
+        (participant / "events.csv").write_text(
+            "id,timestamp_received,timestamp_processed,reporter,cause,title,address,selected_context_id,spo_id,active_app\n"
+            "1,1000,1000,test,tag added,,,1,10,test\n",
+            encoding="utf-8",
+        )
+        (root / "Recommendations.csv").write_text(
+            "Participant ID,Context ID,Event,Timestamp,Content,Recommended Entity,Score\n"
+            "1,1,event,2000,Firebase,http://dbpedia.org/resource/Firebase,2\n"
+            "1,1,event,2000,Firebase,http://dbpedia.org/resource/Other,0\n"
+            "1,1,event,4000,Firebase,http://dbpedia.org/resource/Firebase,2\n"
+            "1,1,event,4000,Firebase,http://dbpedia.org/resource/Other,0\n",
+            encoding="utf-8",
+        )
+        train = evaluate_rlkwic(root, RlkWicConfig(partition="train", train_fraction=0.5))
+        dev = evaluate_rlkwic(root, RlkWicConfig(partition="dev", train_fraction=0.5))
+        self.assertEqual(train["eligible_candidate_slates"], 1)
+        self.assertEqual(dev["eligible_candidate_slates"], 1)
+        self.assertEqual(train["metrics"]["wear_pkg"]["episodes"], 1)
 
 
 if __name__ == "__main__":

@@ -132,6 +132,24 @@ graph edge provides no graph contribution.
 
 The output is an inspectable record of each transition and its assertion.
 
+## RLKWiC context-and-graph validation
+
+RLKWiC supplies timestamped context events, personal-KG triples, actual
+context labels, and human-scored entity recommendations. The runner ranks only
+multi-candidate recommendation slates and reconstructs each context's history
+from KG events strictly earlier than the recommendation timestamp.
+
+```bash
+.venv/bin/wear-pkg rlkwic-sweep \
+  --dataset-dir data/RLKWiC \
+  --config configs/rlkwic-train-sweep.json \
+  --output results/rlkwic-train-sweep.json
+```
+
+Freeze the train-selected configuration before one later-segment replay. The
+entity labels are public DBpedia URIs, but their link to the personal KG is
+lexical; the result should be read as a construct check, not a scale estimate.
+
 ## Dataset-agnostic intent contract
 
 ```text
