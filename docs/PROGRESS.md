@@ -21,10 +21,10 @@ and blockers. Update it in the same commit that changes a stage's state.
 | S1 | MINDsmall train-only tuning | `COMPLETE` | Six variants were evaluated on train only; `a065_frequency_h72` was selected by nDCG@10. |
 | S2 | MINDsmall frozen validation | `COMPLETE` | The frozen full score exceeds frequency on held-out dev nDCG@10 and MRR. |
 | S3 | MINDlarge scale confirmation | `COMPLETE` | The S1-frozen configuration was run unchanged on labeled dev and exceeds frequency on MRR, nDCG@5, and nDCG@10. |
-| S4 | KuaiSAR query-aware replay | `IN_PROGRESS` | Graded nDCG correction preserved the train-selected configuration; the corrected frozen later-segment replay is pending. |
+| S4 | KuaiSAR query-aware replay | `COMPLETE` | Graded nDCG correction preserved the train-selected configuration; the corrected frozen later-segment replay exceeds frequency on MRR, nDCG@5, and nDCG@10. |
 | S5 | Controlled lifecycle validation | `COMPLETE` | Deterministic pin, archive, restore, correction, and graph-disconnection transitions all pass their asserted ranking invariants. |
 | S6 | RLKWiC context-and-graph validation | `COMPLETE` | The train-selected context-and-graph score is frozen and exceeds direct event matching on the later human-scored segment; the small participant count remains an explicit limitation. |
-| S7 | Paired uncertainty checks | `IN_PROGRESS` | Rerun every frozen held-out configuration with 1,000 deterministic user-cluster bootstrap resamples against its pre-specified baseline. |
+| S7 | Paired uncertainty checks | `COMPLETE` | MINDlarge and corrected KuaiSAR have entirely positive user-cluster nDCG@10 intervals; RLKWiC is inconclusive at its small participant count. |
 
 ## Evidence recorded so far
 
@@ -97,7 +97,14 @@ it would require a new, separately documented selection stage.
 - Selected variant remains `a050_balanced_h24`; full score nDCG@10 0.4968, compared with frequency 0.4926.
 - Frozen configuration: `configs/kuaisar-frozen.json`; it must be run unchanged on the later time segment.
 - The previously recorded frozen held-out nDCG values are superseded by the
-  pending corrected replay. The configuration itself remains unchanged.
+  corrected replay. The configuration itself remains unchanged.
+- Corrected frozen held-out run: `results/kuaisar-small-dev-bootstrap-corrected.json` (local, not committed); 33,433 sessions with a positive label evaluated.
+- Full score: MRR 0.4369, nDCG@5 0.4241, nDCG@10 0.4966.
+- Frequency baseline: MRR 0.4292, nDCG@5 0.4166, nDCG@10 0.4898.
+- Difference versus frequency: +0.0077 MRR, +0.0075 nDCG@5, +0.0068 nDCG@10.
+
+The corrected later-segment result uses the unchanged train-selected
+configuration and exceeds frequency on every recorded metric. S4 is complete.
 
 ### S3 — complete
 
@@ -157,7 +164,7 @@ reverses the small train-segment deficit against direct event matching, but its
 55-slate / eight-participant scope means it is evidence of construct behavior,
 not a scale estimate. S6 is complete.
 
-### S7 — in progress
+### S7 — complete
 
 - Method: 1,000 deterministic paired bootstrap resamples at the user cluster
   level, seed `20260818`.
@@ -165,8 +172,18 @@ not a scale estimate. S6 is complete.
   frequency; RLKWiC full score versus direct event matching.
 - Output fields: point difference, percentile 95% interval, and share of
   resamples above zero for MRR, nDCG@5, and nDCG@10.
-- Pending evidence: frozen reruns for all three held-out configurations.
+- MINDlarge versus frequency: nDCG@10 +0.0043, 95% interval [+0.0038,
+  +0.0048], 100.0% positive draws; 251,721 user clusters / 369,454 episodes.
+- Corrected KuaiSAR versus frequency: nDCG@10 +0.0068, 95% interval
+  [+0.0047, +0.0092], 100.0% positive draws; 6,787 user clusters / 33,433
+  sessions.
+- RLKWiC versus direct event matching: nDCG@10 +0.0045, 95% interval
+  [-0.0217, +0.0439], 54.7% positive draws; 6 user clusters / 55 slates.
+
+MINDlarge and corrected KuaiSAR have stable positive intervals. RLKWiC's
+point estimate remains positive but is inconclusive at its available scale.
 
 ## Next update
 
-S7 needs frozen reruns for all three held-out configurations.
+All currently planned stages are complete. See `docs/RESULTS.md` for the
+compact reproducibility summary and uncertainty interpretation.
