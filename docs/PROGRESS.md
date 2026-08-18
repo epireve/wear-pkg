@@ -23,7 +23,7 @@ and blockers. Update it in the same commit that changes a stage's state.
 | S3 | MINDlarge scale confirmation | `COMPLETE` | The S1-frozen configuration was run unchanged on labeled dev and exceeds frequency on MRR, nDCG@5, and nDCG@10. |
 | S4 | KuaiSAR query-aware replay | `COMPLETE` | The train-selected query-aware score was frozen and exceeds frequency, action, lexical relevance, and salience on the later time segment. |
 | S5 | Controlled lifecycle validation | `COMPLETE` | Deterministic pin, archive, restore, correction, and graph-disconnection transitions all pass their asserted ranking invariants. |
-| S6 | RLKWiC context-and-graph validation | `IN_PROGRESS` | Use timestamped KG events to rank human-scored multi-candidate entity slates; choose only from the earlier time segment. |
+| S6 | RLKWiC context-and-graph validation | `COMPLETE` | The train-selected context-and-graph score is frozen and exceeds direct event matching on the later human-scored segment; the small participant count remains an explicit limitation. |
 
 ## Evidence recorded so far
 
@@ -151,8 +151,18 @@ on every recorded ranking metric.
   presented as evidence that the full score dominates direct event matching.
 - Frozen configuration: `configs/rlkwic-frozen.json`; it must be run unchanged
   on the later time segment.
-- Pending evidence: one frozen later-segment replay.
+- Frozen held-out run: `results/rlkwic-dev-frozen.json` (local, not committed);
+  55 eligible human-scored slates evaluated.
+- Full score: MRR 0.9727, nDCG@5 0.9681, nDCG@10 0.9701.
+- Direct event-lexical baseline: MRR 0.9606, nDCG@5 0.9635, nDCG@10 0.9656.
+- Difference versus direct event matching: +0.0121 MRR, +0.0046 nDCG@5,
+  +0.0045 nDCG@10.
+
+The later-segment result uses the train-selected configuration unchanged. It
+reverses the small train-segment deficit against direct event matching, but its
+55-slate / eight-participant scope means it is evidence of construct behavior,
+not a scale estimate. S6 is complete.
 
 ## Next update
 
-S6 needs train-only configuration selection and one frozen later-segment replay.
+All currently planned stages are complete.
