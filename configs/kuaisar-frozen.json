@@ -1,5 +1,6 @@
 {
-  "source_stage": "S4 train-only selection",
+  "source_stage": "S4 corrected train-only selection",
+  "supersedes": "S4 train-only selection recorded before graded nDCG correction",
   "selection_metric": "ndcg@10",
   "selected_variant": "a050_balanced_h24",
   "alpha": 0.5,

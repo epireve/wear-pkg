@@ -21,7 +21,7 @@ and blockers. Update it in the same commit that changes a stage's state.
 | S1 | MINDsmall train-only tuning | `COMPLETE` | Six variants were evaluated on train only; `a065_frequency_h72` was selected by nDCG@10. |
 | S2 | MINDsmall frozen validation | `COMPLETE` | The frozen full score exceeds frequency on held-out dev nDCG@10 and MRR. |
 | S3 | MINDlarge scale confirmation | `COMPLETE` | The S1-frozen configuration was run unchanged on labeled dev and exceeds frequency on MRR, nDCG@5, and nDCG@10. |
-| S4 | KuaiSAR query-aware replay | `COMPLETE` | The train-selected query-aware score was frozen and exceeds frequency, action, lexical relevance, and salience on the later time segment. |
+| S4 | KuaiSAR query-aware replay | `IN_PROGRESS` | Graded nDCG correction preserved the train-selected configuration; the corrected frozen later-segment replay is pending. |
 | S5 | Controlled lifecycle validation | `COMPLETE` | Deterministic pin, archive, restore, correction, and graph-disconnection transitions all pass their asserted ranking invariants. |
 | S6 | RLKWiC context-and-graph validation | `COMPLETE` | The train-selected context-and-graph score is frozen and exceeds direct event matching on the later human-scored segment; the small participant count remains an explicit limitation. |
 | S7 | Paired uncertainty checks | `IN_PROGRESS` | Rerun every frozen held-out configuration with 1,000 deterministic user-cluster bootstrap resamples against its pre-specified baseline. |
@@ -92,19 +92,12 @@ it would require a new, separately documented selection stage.
 - Smoke output: `results/kuaisar-small-smoke.json` (local, not committed).
 - Temporal partitioning verified: an 80/20 global session-time split has cutoff `2023-05-28T01:44:45.498000+00:00`; events at the same timestamp are excluded from the current session's history.
 - Automated checks: 7 passing tests, including a synthetic single-boundary temporal partition test.
-- Train-only selection: `results/kuaisar-small-train-sweep.json` (local, not committed); 267,608 sessions, 80/20 timestamp split, nDCG@10 selection metric.
-- Selected variant: `a050_balanced_h24`; full score nDCG@10 0.5328, compared with frequency 0.5288 and action 0.5289.
+- Original train-only selection was recorded using a binary-only nDCG denominator even though `click_cnt` is graded. The original MRR values remain valid; its nDCG values are superseded.
+- Corrected train-only selection: `results/kuaisar-small-train-sweep-corrected.json` (local, not committed); 267,608 sessions, 80/20 timestamp split, graded nDCG@10 selection metric.
+- Selected variant remains `a050_balanced_h24`; full score nDCG@10 0.4968, compared with frequency 0.4926.
 - Frozen configuration: `configs/kuaisar-frozen.json`; it must be run unchanged on the later time segment.
-- Frozen held-out run: `results/kuaisar-small-dev-frozen.json` (local, not committed); 33,433 sessions with a positive label evaluated.
-- Full score: MRR 0.4369, nDCG@5 0.4640, nDCG@10 0.5406.
-- Frequency baseline: MRR 0.4292, nDCG@5 0.4562, nDCG@10 0.5335.
-- Action baseline: MRR 0.4291, nDCG@5 0.4561, nDCG@10 0.5333.
-- Lexical query baseline: MRR 0.4189, nDCG@5 0.4446, nDCG@10 0.5233.
-- Difference versus frequency: +0.0077 MRR, +0.0078 nDCG@5, +0.0071 nDCG@10.
-
-The later-segment result uses the train-selected configuration unchanged and
-exceeds all recorded single-component and salience-only baselines. S4 is
-complete.
+- The previously recorded frozen held-out nDCG values are superseded by the
+  pending corrected replay. The configuration itself remains unchanged.
 
 ### S3 — complete
 
