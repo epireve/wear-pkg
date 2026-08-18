@@ -146,7 +146,16 @@ class MindReplayTest(unittest.TestCase):
         self.assertTrue(result["passed"])
         self.assertEqual(
             {scenario["id"] for scenario in result["scenarios"]},
-            {"pin_unpin", "archive_restore", "correction_redirect", "graph_disconnection"},
+            {
+                "pin_unpin",
+                "archive_restore",
+                "correction_redirect",
+                "graph_disconnection",
+                "stable_low_recommendation",
+                "archive_safety_gates",
+                "stable_low_persistence",
+                "user_controlled_archive_restore",
+            },
         )
 
     def test_graded_ndcg_uses_graded_ideal_order(self) -> None:

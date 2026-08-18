@@ -132,6 +132,14 @@ graph edge provides no graph contribution.
 
 The output is an inspectable record of each transition and its assertion.
 
+The same suite now includes a controlled `StableLow` archive recommendation
+policy. It recommends an item for user review only when interaction-based
+salience remains at or below a fixed threshold both now and 30 days earlier,
+and the item has been inactive for 90 days. Pinned, protected, corrected,
+recently used, or actively graph-dependent items are excluded. The policy
+returns reason codes and never archives an item by itself; archive and restore
+remain explicit lifecycle operations.
+
 ## RLKWiC context-and-graph validation
 
 RLKWiC supplies timestamped context events, personal-KG triples, actual

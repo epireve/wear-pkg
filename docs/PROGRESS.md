@@ -203,3 +203,20 @@ point estimate remains positive but is inconclusive at its available scale.
 - Inference: 1,000 paired user-cluster bootstrap samples, seed `20260818`,
   compare the unchanged full configuration with each removal. These are
   diagnostic follow-on analyses, not additional configuration selection.
+
+### S9 — in progress
+
+- Policy implementation: `ArchivePolicy` in `src/wear_pkg/lifecycle.py`.
+- Fixed rule: recommend an item only when its bounded interaction-based
+  salience is at or below `0.28` both now and 30 days earlier, and it has no
+  direct interaction within 90 days. The fixed half-life is 60 days; weights
+  are recency 0.70 and frequency/context/graph 0.10 each.
+- Safety gates: corrected, already archived, pinned, protected, recently used,
+  and actively graph-dependent items are not recommended.
+- Recommendations are advisory only. An archive transition still requires an
+  explicit call, and restore returns the item to the active candidate set.
+- Implemented controlled cases: stable-low eligibility and reason codes;
+  recent/pinned/protected/dependent safeguards; persistence against transient
+  low salience; explicit archive then restore.
+- Initial local validation: 8 of 8 deterministic scenarios pass in
+  `results/lifecycle-stablelow-validation.json` (local, not committed).
