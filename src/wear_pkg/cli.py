@@ -37,12 +37,16 @@ def _mind_sweep(arguments: argparse.Namespace) -> int:
     source = json.loads(arguments.config.read_text(encoding="utf-8"))
     try:
         use_provided_history = source["use_provided_history"]
+        bootstrap_samples = int(source.get("bootstrap_samples", 0))
+        bootstrap_seed = int(source.get("bootstrap_seed", 20260818))
         variants = {
             item["id"]: MindRunConfig(
                 alpha=float(item["alpha"]),
                 half_life_hours=float(item["half_life_hours"]),
                 min_observed_history=int(source.get("min_observed_history", 1)),
                 use_provided_history=bool(use_provided_history),
+                bootstrap_samples=bootstrap_samples,
+                bootstrap_seed=bootstrap_seed,
                 salience_weights=SalienceWeights(
                     float(item["weights"]["recency"]),
                     float(item["weights"]["frequency"]),
@@ -54,7 +58,7 @@ def _mind_sweep(arguments: argparse.Namespace) -> int:
         }
         if len(variants) != len(source["variants"]):
             raise ValueError("Every sweep variant id must be unique")
-        result = evaluate_mind_sweep(arguments.dataset_dir, variants)
+        result = evaluate_mind_sweep(arguments.dataset_dir, variants, source.get("comparison_variant_id"))
     except (FileNotFoundError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
         raise SystemExit(f"error: {error}") from error
     metric = source.get("selection_metric", "ndcg@10")
@@ -105,6 +109,8 @@ def _kuaisar_sweep(arguments: argparse.Namespace) -> int:
         train_fraction = float(source["train_fraction"])
         min_history_events = int(source.get("min_history_events", 1))
         max_sessions = source.get("max_sessions")
+        bootstrap_samples = int(source.get("bootstrap_samples", 0))
+        bootstrap_seed = int(source.get("bootstrap_seed", 20260818))
         variants = {
             item["id"]: KuaiSarConfig(
                 alpha=float(item["alpha"]),
@@ -113,6 +119,8 @@ def _kuaisar_sweep(arguments: argparse.Namespace) -> int:
                 max_sessions=int(max_sessions) if max_sessions is not None else None,
                 partition=partition,
                 train_fraction=train_fraction,
+                bootstrap_samples=bootstrap_samples,
+                bootstrap_seed=bootstrap_seed,
                 salience_weights=KuaiSarWeights(
                     float(item["weights"]["recency"]),
                     float(item["weights"]["frequency"]),
@@ -125,7 +133,7 @@ def _kuaisar_sweep(arguments: argparse.Namespace) -> int:
         }
         if len(variants) != len(source["variants"]):
             raise ValueError("Every sweep variant id must be unique")
-        result = evaluate_kuaisar_sweep(arguments.dataset_dir, variants)
+        result = evaluate_kuaisar_sweep(arguments.dataset_dir, variants, source.get("comparison_variant_id"))
     except (FileNotFoundError, KeyError, TypeError, ValueError, json.JSONDecodeError, sqlite3.Error) as error:
         raise SystemExit(f"error: {error}") from error
     metric = source.get("selection_metric", "ndcg@10")

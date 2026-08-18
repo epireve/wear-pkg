@@ -168,6 +168,28 @@ dependence.
 The result records the point difference, 95% percentile interval, and the
 share of bootstrap draws above zero for MRR, nDCG@5, and nDCG@10.
 
+## Fixed signal-ablation diagnostics
+
+The ablation files remove one salience signal at a time while preserving the
+previously selected score mix, temporal partition, history rule, and bootstrap
+seed. They are diagnostic comparisons against the frozen full configuration,
+not another selection pass.
+
+```bash
+PYTHONPATH=src python3 -m wear_pkg.cli mind-sweep \
+  --dataset-dir data/MINDlarge_dev \
+  --config configs/mindlarge-frozen-ablations.json \
+  --output results/mindlarge-dev-ablations.json
+
+PYTHONPATH=src python3 -m wear_pkg.cli kuaisar-sweep \
+  --dataset-dir data/KuaiSAR-small \
+  --config configs/kuaisar-frozen-ablations.json \
+  --output results/kuaisar-small-dev-ablations.json
+```
+
+Each output includes paired user-cluster uncertainty for every removal versus
+the declared full configuration.
+
 ## Dataset-agnostic intent contract
 
 ```text

@@ -259,12 +259,24 @@ def evaluate_mind(dataset_dir: Path, config: MindRunConfig = MindRunConfig()) ->
     return result
 
 
-def evaluate_mind_sweep(dataset_dir: Path, variants: Mapping[str, MindRunConfig]) -> dict:
-    """Evaluate a train-only configuration grid in one chronological replay."""
+def evaluate_mind_sweep(
+    dataset_dir: Path,
+    variants: Mapping[str, MindRunConfig],
+    comparison_variant_id: str | None = None,
+) -> dict:
+    """Evaluate fixed configurations in one chronological replay.
+
+    ``comparison_variant_id`` is optional because ordinary train-only selection
+    needs only per-variant metrics.  When supplied with bootstrap samples, it
+    also records paired user-cluster uncertainty for every other fixed variant
+    against that declared reference.  It never selects or changes a variant.
+    """
     if not variants:
         raise ValueError("At least one sweep variant is required")
     configured = list(variants.items())
     reference = configured[0][1]
+    if comparison_variant_id is not None and comparison_variant_id not in variants:
+        raise ValueError("comparison_variant_id must name a configured variant")
     if any(
         candidate.min_observed_history != reference.min_observed_history
         or candidate.use_provided_history != reference.use_provided_history
@@ -283,6 +295,11 @@ def evaluate_mind_sweep(dataset_dir: Path, variants: Mapping[str, MindRunConfig]
     index_path = build_event_index(dataset_dir)
     baseline_metrics = {name: MetricAccumulator() for name in ("profile_relevance", "frequency")}
     variant_metrics = {variant_id: MetricAccumulator() for variant_id in variants}
+    paired_against_reference = (
+        {variant_id: PairedClusterAccumulator() for variant_id in variants if variant_id != comparison_variant_id}
+        if comparison_variant_id is not None and reference.bootstrap_samples
+        else {}
+    )
     variants_by_half_life: dict[float, list[tuple[str, MindRunConfig]]] = {}
     for variant_id, config in configured:
         variants_by_half_life.setdefault(config.half_life_hours, []).append((variant_id, config))
@@ -342,22 +359,26 @@ def evaluate_mind_sweep(dataset_dir: Path, variants: Mapping[str, MindRunConfig]
             baseline_metrics["frequency"].add(
                 _rank([(candidate.label, baseline_features[candidate.item_id].frequency, candidate.item_id) for candidate in present])
             )
+            ranks: dict[str, list[int]] = {}
             for half_life_hours, grouped_variants in variants_by_half_life.items():
                 features = normalized_by_half_life[half_life_hours]
                 for variant_id, config in grouped_variants:
-                    variant_metrics[variant_id].add(
-                        _rank(
-                            [
-                                (
-                                    candidate.label,
-                                    config.alpha * profile_scores[candidate.item_id]
-                                    + (1 - config.alpha) * combine(features[candidate.item_id], config.salience_weights),
-                                    candidate.item_id,
-                                )
-                                for candidate in present
-                            ]
-                        )
+                    rank = _rank(
+                        [
+                            (
+                                candidate.label,
+                                config.alpha * profile_scores[candidate.item_id]
+                                + (1 - config.alpha) * combine(features[candidate.item_id], config.salience_weights),
+                                candidate.item_id,
+                            )
+                            for candidate in present
+                        ]
                     )
+                    variant_metrics[variant_id].add(rank)
+                    ranks[variant_id] = rank
+            if paired_against_reference and comparison_variant_id in ranks:
+                for variant_id, paired in paired_against_reference.items():
+                    paired.add(episode.user_id, ranks[comparison_variant_id], ranks[variant_id])
             eligible_episodes += 1
 
         for candidate in present:
@@ -392,6 +413,23 @@ def evaluate_mind_sweep(dataset_dir: Path, variants: Mapping[str, MindRunConfig]
             }
             for variant_id, config in configured
         },
+        **(
+            {
+                "paired_comparisons": {
+                    "reference_variant": comparison_variant_id,
+                    "comparisons": {
+                        variant_id: {
+                            "full_model": comparison_variant_id,
+                            "baseline": variant_id,
+                            **paired.bootstrap(reference.bootstrap_samples, reference.bootstrap_seed),
+                        }
+                        for variant_id, paired in paired_against_reference.items()
+                    },
+                }
+            }
+            if paired_against_reference
+            else {}
+        ),
         "limitations": [
             "MIND-provided history is never used for recency because individual event times are unavailable.",
             "Click labels are implicit engagement under the logged news policy, not relevance or personal importance labels.",

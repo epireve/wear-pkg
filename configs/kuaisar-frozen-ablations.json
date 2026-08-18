@@ -1,0 +1,49 @@
+{
+  "source_stage": "S4/S7 corrected frozen KuaiSAR replay",
+  "purpose": "predeclared fixed-configuration diagnostic ablations; not a selection sweep",
+  "selection_metric": "ndcg@10",
+  "comparison_variant_id": "full_frozen",
+  "bootstrap_samples": 1000,
+  "bootstrap_seed": 20260818,
+  "partition": "dev",
+  "train_fraction": 0.8,
+  "min_history_events": 1,
+  "variants": [
+    {
+      "id": "full_frozen",
+      "alpha": 0.5,
+      "half_life_hours": 24,
+      "weights": {"recency": 0.2, "frequency": 0.2, "action": 0.2, "context": 0.2, "graph": 0.2}
+    },
+    {
+      "id": "without_recency",
+      "alpha": 0.5,
+      "half_life_hours": 24,
+      "weights": {"recency": 0.0, "frequency": 0.25, "action": 0.25, "context": 0.25, "graph": 0.25}
+    },
+    {
+      "id": "without_frequency",
+      "alpha": 0.5,
+      "half_life_hours": 24,
+      "weights": {"recency": 0.25, "frequency": 0.0, "action": 0.25, "context": 0.25, "graph": 0.25}
+    },
+    {
+      "id": "without_action",
+      "alpha": 0.5,
+      "half_life_hours": 24,
+      "weights": {"recency": 0.25, "frequency": 0.25, "action": 0.0, "context": 0.25, "graph": 0.25}
+    },
+    {
+      "id": "without_context",
+      "alpha": 0.5,
+      "half_life_hours": 24,
+      "weights": {"recency": 0.25, "frequency": 0.25, "action": 0.25, "context": 0.0, "graph": 0.25}
+    },
+    {
+      "id": "without_graph",
+      "alpha": 0.5,
+      "half_life_hours": 24,
+      "weights": {"recency": 0.25, "frequency": 0.25, "action": 0.25, "context": 0.25, "graph": 0.0}
+    }
+  ]
+}

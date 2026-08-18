@@ -58,17 +58,20 @@ class MindReplayTest(unittest.TestCase):
 
     def test_sweep_selects_variants_in_one_replay(self) -> None:
         variants = {
-            "balanced": MindRunConfig(alpha=0.5, use_provided_history=True),
+            "balanced": MindRunConfig(alpha=0.5, use_provided_history=True, bootstrap_samples=5),
             "frequency": MindRunConfig(
                 alpha=0.5,
                 use_provided_history=True,
+                bootstrap_samples=5,
                 salience_weights=SalienceWeights(0.1, 0.7, 0.1, 0.1),
             ),
         }
-        result = evaluate_mind_sweep(self._dataset(), variants)
+        result = evaluate_mind_sweep(self._dataset(), variants, comparison_variant_id="balanced")
         self.assertEqual(result["history_mode"], "provided_non_temporal")
         self.assertEqual(set(result["variants"]), set(variants))
         self.assertEqual(result["reference_metrics"]["frequency"]["episodes"], 3)
+        self.assertEqual(result["paired_comparisons"]["reference_variant"], "balanced")
+        self.assertIn("frequency", result["paired_comparisons"]["comparisons"])
 
     def test_kuaisar_uses_actual_query_and_prior_action(self) -> None:
         temporary = tempfile.TemporaryDirectory()
@@ -130,11 +133,13 @@ class MindReplayTest(unittest.TestCase):
         sweep = evaluate_kuaisar_sweep(
             root.parent,
             {
-                "low_alpha": KuaiSarConfig(partition="train", train_fraction=0.5),
-                "high_alpha": KuaiSarConfig(alpha=0.8, partition="train", train_fraction=0.5),
+                "low_alpha": KuaiSarConfig(partition="train", train_fraction=0.5, bootstrap_samples=5),
+                "high_alpha": KuaiSarConfig(alpha=0.8, partition="train", train_fraction=0.5, bootstrap_samples=5),
             },
+            comparison_variant_id="low_alpha",
         )
         self.assertEqual(set(sweep["variants"]), {"low_alpha", "high_alpha"})
+        self.assertIn("high_alpha", sweep["paired_comparisons"]["comparisons"])
 
     def test_controlled_lifecycle_transitions_hold(self) -> None:
         result = run_lifecycle_validation()

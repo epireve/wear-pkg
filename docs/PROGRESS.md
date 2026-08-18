@@ -25,6 +25,8 @@ and blockers. Update it in the same commit that changes a stage's state.
 | S5 | Controlled lifecycle validation | `COMPLETE` | Deterministic pin, archive, restore, correction, and graph-disconnection transitions all pass their asserted ranking invariants. |
 | S6 | RLKWiC context-and-graph validation | `COMPLETE` | The train-selected context-and-graph score is frozen and exceeds direct event matching on the later human-scored segment; the small participant count remains an explicit limitation. |
 | S7 | Paired uncertainty checks | `COMPLETE` | MINDlarge and corrected KuaiSAR have entirely positive user-cluster nDCG@10 intervals; RLKWiC is inconclusive at its small participant count. |
+| S8 | Frozen signal-ablation diagnostics | `IN_PROGRESS` | Fixed full-versus-signal-removal configurations and paired user-cluster comparisons must be run without re-selection. |
+| S9 | Controlled StableLow archive policy | `PENDING` | A recommendation policy, reason codes, safeguards, and deterministic end-to-end scenarios must be implemented and verified. |
 
 ## Evidence recorded so far
 
@@ -185,5 +187,19 @@ point estimate remains positive but is inconclusive at its available scale.
 
 ## Next update
 
-All currently planned stages are complete. See `docs/RESULTS.md` for the
-compact reproducibility summary and uncertainty interpretation.
+### S8 — in progress
+
+- Purpose: identify the contribution of each signal family without changing
+  any selected value or treating the held-out partition as a new tuning set.
+- Frozen MINDlarge diagnostic configuration:
+  `configs/mindlarge-frozen-ablations.json`.
+- Frozen KuaiSAR diagnostic configuration:
+  `configs/kuaisar-frozen-ablations.json`.
+- Protocol: the existing full configuration is the declared reference. Each
+  ablation removes exactly one salience signal and renormalises the remaining
+  signal weights; alpha, history rules, time split, half-life, labels, and
+  bootstrap seed remain fixed. The existing frequency baseline is retained in
+  each replay output.
+- Inference: 1,000 paired user-cluster bootstrap samples, seed `20260818`,
+  compare the unchanged full configuration with each removal. These are
+  diagnostic follow-on analyses, not additional configuration selection.

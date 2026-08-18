@@ -1,0 +1,42 @@
+{
+  "source_stage": "S3/S7 frozen MINDlarge replay",
+  "purpose": "predeclared fixed-configuration diagnostic ablations; not a selection sweep",
+  "selection_metric": "ndcg@10",
+  "comparison_variant_id": "full_frozen",
+  "bootstrap_samples": 1000,
+  "bootstrap_seed": 20260818,
+  "min_observed_history": 1,
+  "use_provided_history": true,
+  "variants": [
+    {
+      "id": "full_frozen",
+      "alpha": 0.65,
+      "half_life_hours": 72,
+      "weights": {"recency": 0.15, "frequency": 0.5, "context": 0.15, "graph": 0.2}
+    },
+    {
+      "id": "without_recency",
+      "alpha": 0.65,
+      "half_life_hours": 72,
+      "weights": {"recency": 0.0, "frequency": 0.5882352941, "context": 0.1764705882, "graph": 0.2352941177}
+    },
+    {
+      "id": "without_frequency",
+      "alpha": 0.65,
+      "half_life_hours": 72,
+      "weights": {"recency": 0.3, "frequency": 0.0, "context": 0.3, "graph": 0.4}
+    },
+    {
+      "id": "without_context",
+      "alpha": 0.65,
+      "half_life_hours": 72,
+      "weights": {"recency": 0.1764705882, "frequency": 0.5882352941, "context": 0.0, "graph": 0.2352941177}
+    },
+    {
+      "id": "without_graph",
+      "alpha": 0.65,
+      "half_life_hours": 72,
+      "weights": {"recency": 0.1875, "frequency": 0.625, "context": 0.1875, "graph": 0.0}
+    }
+  ]
+}

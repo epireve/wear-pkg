@@ -226,11 +226,17 @@ def _should_evaluate(time_ms: int, details: dict) -> bool:
     return time_ms >= details["cutoff_timestamp_ms"]
 
 
-def _evaluate_kuaisar_variants(dataset_dir: Path, variants: Mapping[str, KuaiSarConfig]) -> dict:
+def _evaluate_kuaisar_variants(
+    dataset_dir: Path,
+    variants: Mapping[str, KuaiSarConfig],
+    comparison_variant_id: str | None = None,
+) -> dict:
     if not variants:
         raise ValueError("at least one KuaiSAR variant is required")
     configurations = list(variants.values())
     reference = configurations[0]
+    if comparison_variant_id is not None and comparison_variant_id not in variants:
+        raise ValueError("comparison_variant_id must name a configured variant")
     shared = ("partition", "train_fraction", "min_history_events", "max_sessions", "bootstrap_samples", "bootstrap_seed")
     for config in configurations[1:]:
         if any(getattr(config, name) != getattr(reference, name) for name in shared):
@@ -254,6 +260,11 @@ def _evaluate_kuaisar_variants(dataset_dir: Path, variants: Mapping[str, KuaiSar
     metric_names = ("query_lexical", "frequency", "action", "salience", "wear_pkg")
     metrics = {variant_id: {name: MetricAccumulator() for name in metric_names} for variant_id in variants}
     paired = {variant_id: PairedClusterAccumulator() for variant_id in variants} if reference.bootstrap_samples else {}
+    paired_against_reference = (
+        {variant_id: PairedClusterAccumulator() for variant_id in variants if variant_id != comparison_variant_id}
+        if comparison_variant_id is not None and reference.bootstrap_samples
+        else {}
+    )
     sessions = connection.execute("SELECT session_key, user_id, time_ms, keyword, source FROM search_sessions ORDER BY user_id, time_ms, session_key")
     prior_user: str | None = None
     prior_time = -1
@@ -293,6 +304,7 @@ def _evaluate_kuaisar_variants(dataset_dir: Path, variants: Mapping[str, KuaiSar
                     graph = max((1.0 if candidate.author == event.item.author else 0.0 for event, _ in related), default=0.0)
                     relevance = _overlap(query, candidate.tokens)
                     raw.append((candidate, click, relevance, related, frequency, action, context, graph))
+                ranks: dict[str, list[int]] = {}
                 for variant_id, config in variants.items():
                     half_life = max(config.half_life_hours, 0.001) * 3600 * 1000
                     scored = []
@@ -337,6 +349,11 @@ def _evaluate_kuaisar_variants(dataset_dir: Path, variants: Mapping[str, KuaiSar
                     metrics[variant_id]["wear_pkg"].add(wear_rank)
                     if paired:
                         paired[variant_id].add(user_id, wear_rank, frequency_rank)
+                    if comparison_variant_id is not None:
+                        ranks[variant_id] = wear_rank
+                if paired_against_reference and comparison_variant_id in ranks:
+                    for variant_id, accumulator in paired_against_reference.items():
+                        accumulator.add(user_id, ranks[comparison_variant_id], ranks[variant_id])
                 ranked_sessions += 1
                 if reference.max_sessions and ranked_sessions >= reference.max_sessions:
                     break
@@ -368,6 +385,23 @@ def _evaluate_kuaisar_variants(dataset_dir: Path, variants: Mapping[str, KuaiSar
             }
             for variant_id, config in variants.items()
         },
+        **(
+            {
+                "paired_comparisons": {
+                    "reference_variant": comparison_variant_id,
+                    "comparisons": {
+                        variant_id: {
+                            "full_model": comparison_variant_id,
+                            "baseline": variant_id,
+                            **paired.bootstrap(reference.bootstrap_samples, reference.bootstrap_seed),
+                        }
+                        for variant_id, paired in paired_against_reference.items()
+                    },
+                }
+            }
+            if paired_against_reference
+            else {}
+        ),
         "limitations": [
             "The small release covers a short observation window.",
             "Hashed tokens support lexical matching but not human-readable semantic explanations.",
@@ -386,5 +420,9 @@ def evaluate_kuaisar(dataset_dir: Path, config: KuaiSarConfig = KuaiSarConfig())
     return result
 
 
-def evaluate_kuaisar_sweep(dataset_dir: Path, variants: Mapping[str, KuaiSarConfig]) -> dict:
-    return _evaluate_kuaisar_variants(dataset_dir, variants)
+def evaluate_kuaisar_sweep(
+    dataset_dir: Path,
+    variants: Mapping[str, KuaiSarConfig],
+    comparison_variant_id: str | None = None,
+) -> dict:
+    return _evaluate_kuaisar_variants(dataset_dir, variants, comparison_variant_id)
