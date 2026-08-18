@@ -20,7 +20,7 @@ and blockers. Update it in the same commit that changes a stage's state.
 | S0 | Shared replay core | `COMPLETE` | Chronological replay, profile/query/context intent types, local SQLite ordering, and four automated checks are committed. |
 | S1 | MINDsmall train-only tuning | `COMPLETE` | Six variants were evaluated on train only; `a065_frequency_h72` was selected by nDCG@10. |
 | S2 | MINDsmall frozen validation | `COMPLETE` | The frozen full score exceeds frequency on held-out dev nDCG@10 and MRR. |
-| S3 | MINDlarge scale confirmation | `IN_PROGRESS` | Archives are available locally. Run the S1-frozen configuration on labeled dev only; no tuning is permitted. |
+| S3 | MINDlarge scale confirmation | `COMPLETE` | The S1-frozen configuration was run unchanged on labeled dev and exceeds frequency on MRR, nDCG@5, and nDCG@10. |
 | S4 | KuaiSAR query-aware replay | `IN_PROGRESS` | Begin with the direct-download small release; add actual query-to-caption relevance, multi-action history, and exposed-slate ranking. |
 | S5 | Controlled lifecycle validation | `PENDING` | Define deterministic pin, archive, restore, correction, and graph-disconnection scenarios. |
 
@@ -90,14 +90,23 @@ it would require a new, separately documented selection stage.
 - Smoke output: `results/kuaisar-small-smoke.json` (local, not committed).
 - Pending evidence: temporal train/dev split, train-only configuration selection, and one frozen held-out replay.
 
-### S3 — in progress
+### S3 — complete
 
 - Source archives moved to `data/source_archives/` and extracted locally.
 - Archive SHA-256: train `120dbabba3c889b47f55070bdfe37ba1384c1aa5a3db20fac468d6c695e46840`; dev `a9ce423cf21b1040e8bafb03ee7283cf5cb170b727e3c49fc054ca0b754e66c8`; test `bad558abb96ebdce67a89b60e626da49e7489a82f79e5994dd2cc000b9b693e6`.
 - Extracted rows: train 101,527 items / 2,232,748 impressions; dev 72,023 items / 376,471 impressions; test 120,961 items / 2,370,727 impressions.
-- Evaluation target: frozen S1 configuration on the labeled dev split. The train and test splits will not influence configuration selection.
+- Frozen run: `results/mindlarge-dev-frozen.json` (local, not committed).
+- Eligible episodes: 369,454.
+- Full score: MRR 0.3469, nDCG@5 0.3307, nDCG@10 0.3903.
+- Frequency baseline: MRR 0.3435, nDCG@5 0.3260, nDCG@10 0.3860.
+- Difference versus frequency: +0.0034 MRR, +0.0047 nDCG@5, +0.0043 nDCG@10.
+
+The S1-frozen configuration was applied unchanged to the labeled dev split;
+the train and test splits did not influence configuration selection. The
+improvement over frequency is smaller than on MINDsmall but remains positive
+on every recorded ranking metric.
 
 ## Next update
 
-S4 will record the KuaiSAR release checksum, schema inspection, and the first
-query-aware replay configuration.
+S4 needs temporal train/dev splitting, train-only configuration selection, and
+one frozen held-out query-aware replay.
